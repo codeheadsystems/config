@@ -8,4 +8,6 @@ description = "In-process configuration library that reads a datastore directly"
 dependencies {
     api(project(":config-model"))
     api(project(":config-datastore"))
+
+    testImplementation(libs.bundles.test)
 }

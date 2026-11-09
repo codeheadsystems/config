@@ -13,6 +13,8 @@ dependencies {
     runtimeOnly(project(":config-datastore-postgresql"))
     runtimeOnly(project(":config-datastore-dynamodb"))
     runtimeOnly(project(":config-datastore-etcd"))
+
+    testImplementation(libs.bundles.test)
 }
 
 application {

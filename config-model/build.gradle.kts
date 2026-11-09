@@ -7,4 +7,6 @@ description = "Core configuration domain model: applications, environments, keys
 
 dependencies {
     api(libs.slf4j.api)
+
+    testImplementation(libs.bundles.test)
 }
