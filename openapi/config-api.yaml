@@ -1,0 +1,152 @@
+openapi: 3.1.0
+info:
+  title: Config Service API
+  version: 0.1.0
+  description: |
+    Read and manage configuration stored per application and environment. This file is the
+    contract for every client: the Java `config-client` module and the Rust `config-client` crate
+    are both written (or generated) against it.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/applications:
+    get:
+      operationId: listApplications
+      summary: List applications.
+      responses:
+        "200":
+          description: The applications.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /v1/applications/{application}/environments:
+    get:
+      operationId: listEnvironments
+      summary: List an application's environments.
+      parameters:
+        - $ref: "#/components/parameters/Application"
+      responses:
+        "200":
+          description: The environments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/applications/{application}/environments/{environment}/config:
+    get:
+      operationId: getConfig
+      summary: Get the configuration for an application in an environment.
+      parameters:
+        - $ref: "#/components/parameters/Application"
+        - $ref: "#/components/parameters/Environment"
+      responses:
+        "200":
+          description: The configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigSet"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/ConfigSet"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/applications/{application}/environments/{environment}/config/{key}:
+    get:
+      operationId: getConfigValue
+      summary: Get one configuration value.
+      parameters:
+        - $ref: "#/components/parameters/Application"
+        - $ref: "#/components/parameters/Environment"
+        - $ref: "#/components/parameters/Key"
+      responses:
+        "200":
+          description: The value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigValue"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/applications/{application}/export:
+    get:
+      operationId: exportApplication
+      summary: Export every environment of an application as YAML.
+      parameters:
+        - $ref: "#/components/parameters/Application"
+      responses:
+        "200":
+          description: The application's configuration as YAML.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  parameters:
+    Application:
+      name: application
+      in: path
+      required: true
+      schema:
+        type: string
+    Environment:
+      name: environment
+      in: path
+      required: true
+      schema:
+        type: string
+    Key:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    ConfigValue:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+    ConfigSet:
+      type: object
+      required: [application, environment, values]
+      properties:
+        application:
+          type: string
+        environment:
+          type: string
+        version:
+          type: integer
+          format: int64
+        values:
+          type: object
+          additionalProperties:
+            type: string
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+  responses:
+    NotFound:
+      description: The application, environment or key does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

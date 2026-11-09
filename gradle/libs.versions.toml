@@ -1,0 +1,39 @@
+# The version catalog is the only place a version number is written.
+
+[versions]
+assertj = "3.27.7"
+awsSdk = "2.54.3"
+flyway = "13.12.0"
+jackson = "3.2.3"
+jdbi = "3.55.0"
+jetcd = "0.8.8"
+junit = "6.1.3"
+pgjdbc = "42.7.14"
+slf4j = "2.0.19"
+testcontainers = "1.21.4"
+
+[libraries]
+assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awsSdk" }
+aws-sdk-dynamodb = { module = "software.amazon.awssdk:dynamodb" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
+jackson-dataformat-yaml = { module = "tools.jackson.dataformat:jackson-dataformat-yaml" }
+jdbi-core = { module = "org.jdbi:jdbi3-core", version.ref = "jdbi" }
+jdbi-postgres = { module = "org.jdbi:jdbi3-postgres", version.ref = "jdbi" }
+jdbi-sqlobject = { module = "org.jdbi:jdbi3-sqlobject", version.ref = "jdbi" }
+jetcd-core = { module = "io.etcd:jetcd-core", version.ref = "jetcd" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+pgjdbc = { module = "org.postgresql:postgresql", version.ref = "pgjdbc" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
+
+[bundles]
+jdbi = ["jdbi-core", "jdbi-postgres", "jdbi-sqlobject"]
+test = ["junit-jupiter", "assertj"]

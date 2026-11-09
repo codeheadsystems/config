@@ -1,0 +1,12 @@
+[package]
+name = "config-library"
+description = "Reads configuration directly from a datastore, without the config service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+config-model.workspace = true

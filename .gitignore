@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Rust
+rust/target/
+
+# IDEs
+.idea/
+*.iml
+out/
+.vscode/
+
+# Local environment
+.env

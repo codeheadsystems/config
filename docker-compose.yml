@@ -1,0 +1,26 @@
+# Local datastores for development and manual testing. Automated tests use Testcontainers instead.
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: config
+      POSTGRES_USER: config
+      POSTGRES_PASSWORD: config
+    ports:
+      - "5432:5432"
+
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    ports:
+      - "8000:8000"
+
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.17
+    command:
+      - /usr/local/bin/etcd
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+    ports:
+      - "2379:2379"

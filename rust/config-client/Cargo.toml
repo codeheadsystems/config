@@ -1,0 +1,12 @@
+[package]
+name = "config-client"
+description = "Rust client for the config service HTTP API"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+config-model.workspace = true

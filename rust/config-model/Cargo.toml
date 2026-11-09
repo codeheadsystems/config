@@ -1,0 +1,11 @@
+[package]
+name = "config-model"
+description = "Core configuration domain model shared by the Rust config crates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
