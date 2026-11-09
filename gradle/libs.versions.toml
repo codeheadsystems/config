@@ -2,15 +2,15 @@
 
 [versions]
 assertj = "3.27.7"
-awsSdk = "2.54.3"
-flyway = "13.12.0"
-jackson = "3.2.3"
+awsSdk = "2.57.10"
+flyway = "13.12.1"
+jackson = "3.2.4"
 jdbi = "3.55.0"
 jetcd = "0.8.8"
 junit = "6.1.3"
 pgjdbc = "42.7.14"
-slf4j = "2.0.19"
-testcontainers = "1.21.4"
+slf4j = "2.0.20"
+testcontainers = "2.0.5"
 
 [libraries]
 assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
