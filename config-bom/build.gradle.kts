@@ -21,7 +21,6 @@ dependencies {
         api(project(":config-datastore-dynamodb"))
         api(project(":config-datastore-etcd"))
         api(project(":config-datastore-testkit"))
-        api(project(":config-yaml"))
         api(project(":config-library"))
         api(project(":config-client"))
     }

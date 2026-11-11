@@ -22,7 +22,6 @@ dependencies {
         ":config-datastore-dynamodb",
         ":config-datastore-etcd",
         ":config-datastore-testkit",
-        ":config-yaml",
         ":config-library",
         ":config-client",
         ":config-server",

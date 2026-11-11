@@ -28,9 +28,6 @@ include("config-datastore-etcd")
 // Contract tests every backend must pass (published as test fixtures for third-party backends).
 include("config-datastore-testkit")
 
-// YAML import/export of an application's configuration.
-include("config-yaml")
-
 // In-process library: reads a datastore directly, with caching and refresh.
 include("config-library")
 

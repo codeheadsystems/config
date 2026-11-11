@@ -56,9 +56,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigSet"
-            application/yaml:
-              schema:
-                $ref: "#/components/schemas/ConfigSet"
         "404":
           $ref: "#/components/responses/NotFound"
   /v1/applications/{application}/environments/{environment}/config/{key}:
@@ -76,21 +73,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigValue"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /v1/applications/{application}/export:
-    get:
-      operationId: exportApplication
-      summary: Export every environment of an application as YAML.
-      parameters:
-        - $ref: "#/components/parameters/Application"
-      responses:
-        "200":
-          description: The application's configuration as YAML.
-          content:
-            application/yaml:
-              schema:
-                type: string
         "404":
           $ref: "#/components/responses/NotFound"
 components:

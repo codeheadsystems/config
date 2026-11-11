@@ -7,7 +7,6 @@ description = "The config service: serves configuration over HTTP from a datasto
 dependencies {
     implementation(project(":config-model"))
     implementation(project(":config-datastore"))
-    implementation(project(":config-yaml"))
 
     // Backends are selected at runtime through ServiceLoader; ship all of them.
     runtimeOnly(project(":config-datastore-postgresql"))

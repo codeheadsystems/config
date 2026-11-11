@@ -2,6 +2,10 @@
 
 ## Concepts
 
+Configuration is property-based: a configuration set is a flat map of keys to string values.
+Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
+`configuration.with("database")` narrows lookups to one namespace.
+
 - **Application**: a consumer of configuration, such as `billing`.
 - **Environment**: a deployment context for an application, such as `dev` or `prod`.
 - **Configuration set**: the keys and values for one application in one environment
@@ -38,6 +42,22 @@ the driver it uses, and backends are discovered with `java.util.ServiceLoader`.
 `config-datastore-testkit` holds the contract tests; every backend's test suite extends them, so
 all backends behave identically.
 
+### Export
+
+Exporting is a capability of `config-datastore` itself, not of any one backend: any datastore's
+data can be exported, so any store (PostgreSQL, DynamoDB, etcd) can produce a snapshot that seeds
+another. (Not built yet: the SPI first needs a way to list an application's environments and keys.)
+
+## Layering in config-library
+
+`config-library` reads configuration from a stack of datastores:
+
+1. **Defaults.** A datastore loaded first. This can be an export of the live datastore, which
+   gives the application a "cache load" to start from without reaching the live store.
+2. **Updates.** A second datastore attached on top. Values it holds override the defaults.
+
+A key is looked up in the updates datastore first and falls back to the defaults.
+
 ## Java compatibility
 
 The build uses a JDK 25 toolchain and compiles every module with `--release 21`, so published
@@ -45,6 +65,9 @@ artifacts run on Java 21 and later.
 
 ## Open decisions
 
+- How `config-library` refreshes the updates datastore (polling, watch, push), and what happens
+  when the updates datastore is unreachable at startup.
+- The export format.
 - HTTP framework for `config-server`.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.
 - Storage schema per backend, and how environments inherit or override values.
