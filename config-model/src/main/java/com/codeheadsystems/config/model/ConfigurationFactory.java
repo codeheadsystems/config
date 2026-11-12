@@ -3,9 +3,13 @@ package com.codeheadsystems.config.model;
 import java.util.Objects;
 
 /**
- * Produces the {@link Configuration} for one application in one environment. Each datastore
- * backend provides an implementation, along with a {@link Builder} subclass that collects whatever
- * else the backend needs, such as a data source.
+ * Produces the {@link Configuration} for the running process. A factory is bound to one
+ * {@link Application}, the service that is running, and one {@link Environment}, where it is
+ * running (such as {@code test} or {@code prod}). A service reads only its own configuration set,
+ * so a factory never serves another application or environment.
+ *
+ * <p>Each datastore backend provides an implementation, along with a {@link Builder} subclass that
+ * collects whatever else the backend needs, such as a data source.
  *
  * <pre>{@code
  * ConfigurationFactory factory = PostgresConfigurationFactory.builder()

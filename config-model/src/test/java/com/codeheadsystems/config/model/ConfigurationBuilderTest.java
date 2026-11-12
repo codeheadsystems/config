@@ -103,7 +103,7 @@ class ConfigurationBuilderTest {
 
     @Test
     void namespaceIsAlsoEmpty() {
-      assertThat(configuration.withNamespace("database").find("url")).isEmpty();
+      assertThat(configuration.with("database").find("url")).isEmpty();
     }
 
     @Test
@@ -154,7 +154,7 @@ class ConfigurationBuilderTest {
 
     @Test
     void namespaceResolvesAgainstTheMap() {
-      assertThat(configuration.withNamespace("database").get("url"))
+      assertThat(configuration.with("database").get("url"))
         .isEqualTo(new Value("jdbc:postgresql://db/config"));
     }
 
@@ -232,7 +232,7 @@ class ConfigurationBuilderTest {
 
     @Test
     void namespaceResolvesAgainstTheProperties() {
-      assertThat(configuration.withNamespace("database").get("url"))
+      assertThat(configuration.with("database").get("url"))
         .isEqualTo(new Value("jdbc:postgresql://db/config"));
     }
 
@@ -314,14 +314,14 @@ class ConfigurationBuilderTest {
 
     @Test
     void namespaceOverAFallbackReportsTheFullKey() {
-      assertThatThrownBy(() -> configuration.withNamespace("database").get("missing"))
+      assertThatThrownBy(() -> configuration.with("database").get("missing"))
         .isInstanceOf(NoSuchElementException.class)
         .hasMessage("Configuration not found: database.missing");
     }
 
     @Test
     void namespaceFallsBackPerKey() {
-      final Configuration database = configuration.withNamespace("database");
+      final Configuration database = configuration.with("database");
       assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://main/config"));
       assertThat(database.get("pool.size")).isEqualTo(new Value("5"));
     }
@@ -329,7 +329,7 @@ class ConfigurationBuilderTest {
     @Test
     void namespacedConfigurationsCanBeCombined() {
       final Configuration combined = fallback(
-        main.withNamespace("database"), fallback.withNamespace("database"));
+        main.with("database"), fallback.with("database"));
 
       assertThat(combined.get("url")).isEqualTo(new Value("jdbc:postgresql://main/config"));
       assertThat(combined.get("pool.size")).isEqualTo(new Value("5"));

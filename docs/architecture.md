@@ -6,11 +6,13 @@ Configuration is property-based: a configuration set is a flat map of keys to st
 Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
 `configuration.with("database")` narrows lookups to one namespace.
 
-- **Application**: a consumer of configuration, such as `billing`.
-- **Environment**: a deployment context for an application, such as `dev` or `prod`.
+- **Application**: the service that is running, named by its service name, such as `billing`.
+- **Environment**: where that service is running, such as `test` or `prod`.
 - **Configuration set**: the keys and values for one application in one environment
-  (`Application` and `Environment` in `config-model`; a backend's `ConfigurationFactory`
-  builds the `Configuration` for one).
+  (`Application` and `Environment` in `config-model`).
+- **Configuration factory**: builds the `Configuration` for a running process. Each factory is
+  bound to one application and one environment, the identity of the process using it, so a
+  service only ever reads its own configuration set. Each datastore backend provides one.
 
 ## Two ways to read configuration
 

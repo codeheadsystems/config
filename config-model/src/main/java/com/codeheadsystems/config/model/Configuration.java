@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,13 +57,23 @@ public final class Configuration {
     return get(Key.from(key));
   }
 
-  public Configuration withNamespace(final String key) {
-    return withNamespace(Key.from(key));
+  public Configuration with(final String key) {
+    return with(Key.from(key));
   }
 
-  public Configuration withNamespace(final Key key) {
+  public Configuration with(final Key key) {
     Objects.requireNonNull(key, "namespace must not be null");
     return new Configuration(function, resolve(key));
+  }
+
+  public void with(final Key key, final Consumer<Configuration> consumer) {
+    Objects.requireNonNull(consumer, "consumer must not be null");
+    consumer.accept(with(key));
+  }
+
+  public void with(final String key, final Consumer<Configuration> consumer) {
+    Objects.requireNonNull(consumer, "consumer must not be null");
+    consumer.accept(with(key));
   }
 
   private Key resolve(final Key key) {

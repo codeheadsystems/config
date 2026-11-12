@@ -97,16 +97,16 @@ class ConfigurationTest {
   // namespaces
 
   @Test
-  void withNamespaceStringPrefixesLookups() {
-    final Configuration database = root.withNamespace("database");
+  void withStringPrefixesLookups() {
+    final Configuration database = root.with("database");
 
     assertThat(database.find("url")).contains(new Value("jdbc:postgresql://db/config"));
     assertThat(lookups.requested).containsExactly("database.url");
   }
 
   @Test
-  void withNamespaceKeyPrefixesLookups() {
-    final Configuration database = root.withNamespace(Key.from("database"));
+  void withKeyPrefixesLookups() {
+    final Configuration database = root.with(Key.from("database"));
 
     assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://db/config"));
     assertThat(lookups.requested).containsExactly("database.url");
@@ -114,7 +114,7 @@ class ConfigurationTest {
 
   @Test
   void withMultiSegmentNamespace() {
-    final Configuration pool = root.withNamespace(Key.from("database").and("pool"));
+    final Configuration pool = root.with(Key.from("database").and("pool"));
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
     assertThat(lookups.requested).containsExactly("database.pool.size");
@@ -122,7 +122,7 @@ class ConfigurationTest {
 
   @Test
   void withDottedNamespaceString() {
-    final Configuration pool = root.withNamespace("database.pool");
+    final Configuration pool = root.with("database.pool");
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
     assertThat(lookups.requested).containsExactly("database.pool.size");
@@ -130,7 +130,7 @@ class ConfigurationTest {
 
   @Test
   void namespacedViewAcceptsDottedKey() {
-    final Configuration database = root.withNamespace("database");
+    final Configuration database = root.with("database");
 
     assertThat(database.get("pool.size")).isEqualTo(new Value("10"));
     assertThat(lookups.requested).containsExactly("database.pool.size");
@@ -138,7 +138,7 @@ class ConfigurationTest {
 
   @Test
   void nestedWithNamespaceCombinesNamespacesForLookups() {
-    final Configuration pool = root.withNamespace("database").withNamespace("pool");
+    final Configuration pool = root.with("database").with("pool");
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
     assertThat(lookups.requested).containsExactly("database.pool.size");
@@ -146,7 +146,7 @@ class ConfigurationTest {
 
   @Test
   void nestedWithNamespaceMakesOneLookupWithTheFullKey() {
-    final Configuration pool = root.withNamespace("database").withNamespace("pool");
+    final Configuration pool = root.with("database").with("pool");
 
     assertThat(pool.find("size")).contains(new Value("10"));
     assertThat(lookups.requested).containsExactly("database.pool.size");
@@ -155,8 +155,8 @@ class ConfigurationTest {
   @Test
   void namespacedViewsCanBeUsedAsFallbackSources() {
     final Configuration database = Configuration.builder()
-      .with(root.withNamespace("database"))
-      .with(root.withNamespace("database.pool"))
+      .with(root.with("database"))
+      .with(root.with("database.pool"))
       .build();
 
     assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://db/config"));
@@ -165,15 +165,15 @@ class ConfigurationTest {
 
   @Test
   void nestedWithNamespaceMatchesSingleCombinedNamespace() {
-    final Configuration nested = root.withNamespace("database").withNamespace("pool");
-    final Configuration combined = root.withNamespace(Key.from("database").and("pool"));
+    final Configuration nested = root.with("database").with("pool");
+    final Configuration combined = root.with(Key.from("database").and("pool"));
 
     assertThat(nested.find("size")).isEqualTo(combined.find("size"));
   }
 
   @Test
   void namespacedViewDoesNotSeeKeysOutsideIt() {
-    final Configuration database = root.withNamespace("database");
+    final Configuration database = root.with("database");
 
     assertThat(database.find("timeout")).isEmpty();
     assertThat(lookups.requested).containsExactly("database.timeout");
@@ -181,7 +181,7 @@ class ConfigurationTest {
 
   @Test
   void namespacedGetReportsTheFullKey() {
-    final Configuration database = root.withNamespace("database");
+    final Configuration database = root.with("database");
 
     assertThatThrownBy(() -> database.get("missing"))
       .isInstanceOf(NoSuchElementException.class)
@@ -190,7 +190,7 @@ class ConfigurationTest {
 
   @Test
   void nestedNamespacedGetReportsTheFullKey() {
-    final Configuration pool = root.withNamespace("database").withNamespace("pool");
+    final Configuration pool = root.with("database").with("pool");
 
     assertThatThrownBy(() -> pool.get(Key.from("max")))
       .isInstanceOf(NoSuchElementException.class)
@@ -199,7 +199,7 @@ class ConfigurationTest {
 
   @Test
   void namespacedViewValidatesTheKey() {
-    final Configuration database = root.withNamespace("database");
+    final Configuration database = root.with("database");
 
     assertThatThrownBy(() -> database.find(".url")).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> database.get("")).isInstanceOf(IllegalArgumentException.class);
@@ -207,19 +207,19 @@ class ConfigurationTest {
   }
 
   @Test
-  void withNamespaceDoesNotChangeTheParent() {
-    root.withNamespace("database");
+  void withDoesNotChangeTheParent() {
+    root.with("database");
 
     assertThat(root.get("timeout")).isEqualTo(new Value("30s"));
     assertThat(lookups.requested).containsExactly("timeout");
   }
 
   @Test
-  void withNamespaceRejectsInvalidNamespace() {
-    assertThatThrownBy(() -> root.withNamespace(".database")).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> root.withNamespace("database.")).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> root.withNamespace("")).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> root.withNamespace("data base")).isInstanceOf(IllegalArgumentException.class);
+  void withRejectsInvalidNamespace() {
+    assertThatThrownBy(() -> root.with(".database")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> root.with("database.")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> root.with("")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> root.with("data base")).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -229,11 +229,117 @@ class ConfigurationTest {
       .hasMessage("function must not be null");
     assertThatThrownBy(() -> root.find((Key) null))
       .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> root.withNamespace("database").get((Key) null))
+    assertThatThrownBy(() -> root.with("database").get((Key) null))
       .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> root.withNamespace((Key) null))
+    assertThatThrownBy(() -> root.with((Key) null))
       .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> root.withNamespace((String) null))
+    assertThatThrownBy(() -> root.with((String) null))
+      .isInstanceOf(NullPointerException.class);
+  }
+
+  // with(namespace, block)
+
+  @Test
+  void withStringBlockReceivesTheNamespacedView() {
+    final List<Value> seen = new ArrayList<>();
+
+    root.with("database", database -> seen.add(database.get("url")));
+
+    assertThat(seen).containsExactly(new Value("jdbc:postgresql://db/config"));
+    assertThat(lookups.requested).containsExactly("database.url");
+  }
+
+  @Test
+  void withKeyBlockReceivesTheNamespacedView() {
+    final List<Value> seen = new ArrayList<>();
+
+    root.with(Key.from("database"), database -> seen.add(database.get("url")));
+
+    assertThat(seen).containsExactly(new Value("jdbc:postgresql://db/config"));
+    assertThat(lookups.requested).containsExactly("database.url");
+  }
+
+  @Test
+  void withBlockRunsExactlyOnce() {
+    final List<Configuration> calls = new ArrayList<>();
+
+    root.with("database", calls::add);
+
+    assertThat(calls).hasSize(1);
+  }
+
+  @Test
+  void withBlockGetsTheSameViewAsTheReturningForm() {
+    final List<Optional<Value>> seen = new ArrayList<>();
+
+    root.with("database.pool", pool -> seen.add(pool.find("size")));
+
+    assertThat(seen).containsExactly(root.with("database.pool").find("size"));
+  }
+
+  @Test
+  void withBlocksNest() {
+    final List<Value> seen = new ArrayList<>();
+
+    root.with("database", database ->
+      database.with("pool", pool -> seen.add(pool.get("size"))));
+
+    assertThat(seen).containsExactly(new Value("10"));
+    assertThat(lookups.requested).containsExactly("database.pool.size");
+  }
+
+  @Test
+  void withBlockOnANamespacedViewAddsToItsNamespace() {
+    final List<Value> seen = new ArrayList<>();
+
+    root.with("database").with(Key.from("pool"), pool -> seen.add(pool.get("size")));
+
+    assertThat(seen).containsExactly(new Value("10"));
+    assertThat(lookups.requested).containsExactly("database.pool.size");
+  }
+
+  @Test
+  void withBlockGetReportsTheFullKey() {
+    assertThatThrownBy(() -> root.with("database", database -> database.get("missing")))
+      .isInstanceOf(NoSuchElementException.class)
+      .hasMessage("Configuration not found: database.missing");
+  }
+
+  @Test
+  void withBlockDoesNotChangeTheParent() {
+    root.with("database", database -> database.find("url"));
+
+    assertThat(root.get("timeout")).isEqualTo(new Value("30s"));
+    assertThat(lookups.requested).containsExactly("database.url", "timeout");
+  }
+
+  @Test
+  void exceptionsFromTheBlockPropagate() {
+    final IllegalStateException failure = new IllegalStateException("boom");
+
+    assertThatThrownBy(() -> root.with("database", database -> {
+      throw failure;
+    })).isSameAs(failure);
+  }
+
+  @Test
+  void withBlockRejectsAnInvalidNamespaceWithoutRunningTheBlock() {
+    final List<Configuration> calls = new ArrayList<>();
+
+    assertThatThrownBy(() -> root.with(".database", calls::add))
+      .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> root.with((String) null, calls::add))
+      .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> root.with((Key) null, calls::add))
+      .isInstanceOf(NullPointerException.class);
+    assertThat(calls).isEmpty();
+  }
+
+  @Test
+  void withBlockRejectsANullBlock() {
+    assertThatThrownBy(() -> root.with("database", null))
+      .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> root.with(Key.from("database"), null))
       .isInstanceOf(NullPointerException.class);
   }
 

@@ -63,7 +63,7 @@ class ConfigurationFactoryTest {
 
   @Test
   void configurationSupportsNamespaces() {
-    final Configuration database = configurationFor(BILLING, PROD).withNamespace("database");
+    final Configuration database = configurationFor(BILLING, PROD).with("database");
 
     assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://prod/billing"));
   }
