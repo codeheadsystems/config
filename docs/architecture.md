@@ -9,7 +9,8 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
 - **Application**: a consumer of configuration, such as `billing`.
 - **Environment**: a deployment context for an application, such as `dev` or `prod`.
 - **Configuration set**: the keys and values for one application in one environment
-  (`AppEnvironment` in `config-model`).
+  (`Application` and `Environment` in `config-model`; a backend's `ConfigurationFactory`
+  builds the `Configuration` for one).
 
 ## Two ways to read configuration
 

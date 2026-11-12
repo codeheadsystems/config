@@ -12,7 +12,7 @@ public record Key(String name) {
     // The pattern also rejects empty and blank names, so every invalid key gets the same message.
     if (!VALIDATOR.matcher(name).matches()) {
       throw new IllegalArgumentException("Invalid key '" + name
-          + "': use letters, digits, '_' or '-', with '" + SEPARATOR + "' only between segments");
+        + "': use letters, digits, '_' or '-', with '" + SEPARATOR + "' only between segments");
     }
   }
 

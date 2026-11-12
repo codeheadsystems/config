@@ -8,19 +8,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ConfigurationTest {
 
-  private RecordingConfiguration root;
+  private RecordingFunction lookups;
+  private Configuration root;
 
   @BeforeEach
   void setUp() {
-    root = new RecordingConfiguration(Map.of(
-        "timeout", "30s",
-        "database.url", "jdbc:postgresql://db/config",
-        "database.pool.size", "10"));
+    lookups = new RecordingFunction(Map.of(
+      "timeout", "30s",
+      "database.url", "jdbc:postgresql://db/config",
+      "database.pool.size", "10"));
+    root = Configuration.from(lookups);
   }
 
   // find / get with a String
@@ -48,21 +51,21 @@ class ConfigurationTest {
   @Test
   void getStringThrowsForMissingKeyNamingIt() {
     assertThatThrownBy(() -> root.get("missing"))
-        .isInstanceOf(NoSuchElementException.class)
-        .hasMessage("Configuration not found: missing");
+      .isInstanceOf(NoSuchElementException.class)
+      .hasMessage("Configuration not found: missing");
   }
 
   @Test
   void findStringValidatesTheKeyBeforeTheDatastoreSeesIt() {
     assertThatThrownBy(() -> root.find("a b")).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> root.find(".url")).isInstanceOf(IllegalArgumentException.class);
-    assertThat(root.requested).isEmpty();
+    assertThat(lookups.requested).isEmpty();
   }
 
   @Test
   void getStringValidatesTheKeyBeforeTheDatastoreSeesIt() {
     assertThatThrownBy(() -> root.get("url.")).isInstanceOf(IllegalArgumentException.class);
-    assertThat(root.requested).isEmpty();
+    assertThat(lookups.requested).isEmpty();
   }
 
   @Test
@@ -87,8 +90,8 @@ class ConfigurationTest {
   @Test
   void getKeyThrowsForMissingKeyNamingIt() {
     assertThatThrownBy(() -> root.get(Key.from("missing")))
-        .isInstanceOf(NoSuchElementException.class)
-        .hasMessage("Configuration not found: missing");
+      .isInstanceOf(NoSuchElementException.class)
+      .hasMessage("Configuration not found: missing");
   }
 
   // namespaces
@@ -98,7 +101,7 @@ class ConfigurationTest {
     final Configuration database = root.withNamespace("database");
 
     assertThat(database.find("url")).contains(new Value("jdbc:postgresql://db/config"));
-    assertThat(root.requested).containsExactly("database.url");
+    assertThat(lookups.requested).containsExactly("database.url");
   }
 
   @Test
@@ -106,7 +109,7 @@ class ConfigurationTest {
     final Configuration database = root.withNamespace(Key.from("database"));
 
     assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://db/config"));
-    assertThat(root.requested).containsExactly("database.url");
+    assertThat(lookups.requested).containsExactly("database.url");
   }
 
   @Test
@@ -114,7 +117,7 @@ class ConfigurationTest {
     final Configuration pool = root.withNamespace(Key.from("database").and("pool"));
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
-    assertThat(root.requested).containsExactly("database.pool.size");
+    assertThat(lookups.requested).containsExactly("database.pool.size");
   }
 
   @Test
@@ -122,7 +125,7 @@ class ConfigurationTest {
     final Configuration pool = root.withNamespace("database.pool");
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
-    assertThat(root.requested).containsExactly("database.pool.size");
+    assertThat(lookups.requested).containsExactly("database.pool.size");
   }
 
   @Test
@@ -130,7 +133,7 @@ class ConfigurationTest {
     final Configuration database = root.withNamespace("database");
 
     assertThat(database.get("pool.size")).isEqualTo(new Value("10"));
-    assertThat(root.requested).containsExactly("database.pool.size");
+    assertThat(lookups.requested).containsExactly("database.pool.size");
   }
 
   @Test
@@ -138,17 +141,26 @@ class ConfigurationTest {
     final Configuration pool = root.withNamespace("database").withNamespace("pool");
 
     assertThat(pool.get("size")).isEqualTo(new Value("10"));
-    assertThat(root.requested).containsExactly("database.pool.size");
+    assertThat(lookups.requested).containsExactly("database.pool.size");
   }
 
   @Test
-  void nestedWithNamespaceWrapsTheRootOnce() {
+  void nestedWithNamespaceMakesOneLookupWithTheFullKey() {
     final Configuration pool = root.withNamespace("database").withNamespace("pool");
 
-    assertThat(pool).isInstanceOf(Configuration.ConfigurationNamespace.class);
-    final Configuration.ConfigurationNamespace view = (Configuration.ConfigurationNamespace) pool;
-    assertThat(view.namespace()).isEqualTo(Key.from("database.pool"));
-    assertThat(view.configuration()).isSameAs(root);
+    assertThat(pool.find("size")).contains(new Value("10"));
+    assertThat(lookups.requested).containsExactly("database.pool.size");
+  }
+
+  @Test
+  void namespacedViewsCanBeUsedAsFallbackSources() {
+    final Configuration database = Configuration.builder()
+      .with(root.withNamespace("database"))
+      .with(root.withNamespace("database.pool"))
+      .build();
+
+    assertThat(database.get("url")).isEqualTo(new Value("jdbc:postgresql://db/config"));
+    assertThat(database.get("size")).isEqualTo(new Value("10"));
   }
 
   @Test
@@ -164,7 +176,7 @@ class ConfigurationTest {
     final Configuration database = root.withNamespace("database");
 
     assertThat(database.find("timeout")).isEmpty();
-    assertThat(root.requested).containsExactly("database.timeout");
+    assertThat(lookups.requested).containsExactly("database.timeout");
   }
 
   @Test
@@ -172,8 +184,8 @@ class ConfigurationTest {
     final Configuration database = root.withNamespace("database");
 
     assertThatThrownBy(() -> database.get("missing"))
-        .isInstanceOf(NoSuchElementException.class)
-        .hasMessage("Configuration not found: database.missing");
+      .isInstanceOf(NoSuchElementException.class)
+      .hasMessage("Configuration not found: database.missing");
   }
 
   @Test
@@ -181,8 +193,8 @@ class ConfigurationTest {
     final Configuration pool = root.withNamespace("database").withNamespace("pool");
 
     assertThatThrownBy(() -> pool.get(Key.from("max")))
-        .isInstanceOf(NoSuchElementException.class)
-        .hasMessage("Configuration not found: database.pool.max");
+      .isInstanceOf(NoSuchElementException.class)
+      .hasMessage("Configuration not found: database.pool.max");
   }
 
   @Test
@@ -191,7 +203,7 @@ class ConfigurationTest {
 
     assertThatThrownBy(() -> database.find(".url")).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> database.get("")).isInstanceOf(IllegalArgumentException.class);
-    assertThat(root.requested).isEmpty();
+    assertThat(lookups.requested).isEmpty();
   }
 
   @Test
@@ -199,7 +211,7 @@ class ConfigurationTest {
     root.withNamespace("database");
 
     assertThat(root.get("timeout")).isEqualTo(new Value("30s"));
-    assertThat(root.requested).containsExactly("timeout");
+    assertThat(lookups.requested).containsExactly("timeout");
   }
 
   @Test
@@ -211,34 +223,35 @@ class ConfigurationTest {
   }
 
   @Test
-  void configurationNamespaceRejectsNulls() {
-    final Key namespace = Key.from("database");
-
-    assertThatThrownBy(() -> new Configuration.ConfigurationNamespace(null, namespace))
-        .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(() -> new Configuration.ConfigurationNamespace(root, null))
-        .isInstanceOf(NullPointerException.class);
+  void nullsAreRejected() {
+    assertThatThrownBy(() -> Configuration.from(null))
+      .isInstanceOf(NullPointerException.class)
+      .hasMessage("function must not be null");
+    assertThatThrownBy(() -> root.find((Key) null))
+      .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> root.withNamespace("database").get((Key) null))
+      .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> root.withNamespace((Key) null))
-        .isInstanceOf(NullPointerException.class);
+      .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> root.withNamespace((String) null))
-        .isInstanceOf(NullPointerException.class);
+      .isInstanceOf(NullPointerException.class);
   }
 
   /**
-   * A map-backed configuration that records the name of every key it is asked for, so tests can
+   * A map-backed lookup function that records the name of every key it is asked for, so tests can
    * assert the exact key a namespaced view resolves to.
    */
-  private static final class RecordingConfiguration implements Configuration {
+  private static final class RecordingFunction implements Function<Key, Optional<Value>> {
 
     private final Map<String, String> values;
     private final List<String> requested = new ArrayList<>();
 
-    RecordingConfiguration(final Map<String, String> values) {
+    RecordingFunction(final Map<String, String> values) {
       this.values = values;
     }
 
     @Override
-    public Optional<Value> find(final Key key) {
+    public Optional<Value> apply(final Key key) {
       requested.add(key.name());
       return Value.from(values.get(key.name()));
     }

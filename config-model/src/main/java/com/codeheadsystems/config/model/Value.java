@@ -6,7 +6,7 @@ import java.util.Optional;
 public record Value(String value) {
 
   public Value {
-    Objects.requireNonNull(value, "name must not be null");
+    Objects.requireNonNull(value, "value must not be null");
   }
 
   public static Optional<Value> from(String value) {
