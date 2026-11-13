@@ -72,6 +72,22 @@ Readers use `ConfigReader` (config-library needs only this, so it can run read-o
 Backends that store a whole set as one document (S3, DynamoDB, etcd) can use `Changes` to apply a
 write, so they all interpret changes the same way.
 
+### S3 backend
+
+`config-datastore-s3` stores each set as one JSON object, `{"version": n, "values": {...}}`, with
+the version also in object metadata so `version()` is a single `HEAD`:
+
+```
+{prefix}sets/_{application}/_{environment}/{settings|metadata}   live sets (listed)
+{prefix}tombstones/_{application}/_{environment}/{type}          last version of a deleted set
+```
+
+Names are URL-encoded and prefixed with `_`, so a `/` in a name never adds a level. Every write is
+one conditional request (`If-None-Match: *` to create, `If-Match` to update, a conditional delete
+to remove), which makes it atomic. Writes using `Versions.ANY` retry with jittered backoff when they
+lose a race. It needs an S3 service with conditional writes and deletes: Amazon S3, or RustFS
+(pinned to 1.0.4 in `docker-compose.yml` and the tests).
+
 ### Export
 
 Exporting is a capability of `config-datastore` itself, not of any one backend: any datastore's
@@ -100,6 +116,6 @@ artifacts run on Java 21 and later.
 - The export format.
 - HTTP framework for `config-server`.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.
-- Storage layout per backend (one document per set is the likely choice for S3, DynamoDB and
-  etcd), and how environments inherit or override values.
+- Storage layout for the remaining backends (S3 uses one object per set; the same approach likely
+  suits DynamoDB and etcd), and how environments inherit or override values.
 - History of configuration sets (each set already has a version that only increases).

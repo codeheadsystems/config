@@ -34,8 +34,8 @@ mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.
 pgjdbc = { module = "org.postgresql:postgresql", version.ref = "pgjdbc" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
-testcontainers-junit = { module = "org.testcontainers:junit-jupiter" }
-testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
 
 [bundles]
 jdbi = ["jdbi-core", "jdbi-postgres", "jdbi-sqlobject"]

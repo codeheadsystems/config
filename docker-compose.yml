@@ -24,3 +24,16 @@ services:
       - --listen-client-urls=http://0.0.0.0:2379
     ports:
       - "2379:2379"
+
+  # S3-compatible object store for the S3 backend. Pinned: the S3 contract tests run against the
+  # same version (RUSTFS_IMAGE in S3ConfigDatastoreContractTest); change both together.
+  # Console at http://localhost:9001. Create the bucket before use, for example:
+  #   aws --endpoint-url http://localhost:9000 s3 mb s3://config
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: config
+      RUSTFS_SECRET_KEY: config-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"

@@ -17,7 +17,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-datastore-postgresql/` | PostgreSQL backend. |
 | `config-datastore-dynamodb/` | DynamoDB backend. |
 | `config-datastore-etcd/` | etcd backend. |
-| `config-datastore-s3/` | Amazon S3 backend. |
+| `config-datastore-s3/` | Amazon S3 backend (also works with RustFS). |
 | `config-datastore-testkit/` | Contract tests every backend must pass. |
 | `config-library/` | In-process Java library that reads a datastore directly. |
 | `config-client/` | Java client for the config service HTTP API. |
