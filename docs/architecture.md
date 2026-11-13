@@ -8,11 +8,16 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
 
 - **Application**: the service that is running, named by its service name, such as `billing`.
 - **Environment**: where that service is running, such as `test` or `prod`.
+
+  Both names are 1 to 63 lowercase letters, digits, `-` or `_`, starting with a letter or digit
+  (like a DNS label). Lowercase only, so two names never differ just by case; no `/` or `.`, so a
+  name is always safe as one segment of a path, URL or storage key.
 - **Configuration set**: the keys and values for one application in one environment
   (`Application` and `Environment` in `config-model`).
 - **Configuration factory**: builds the `Configuration` for a running process. Each factory is
   bound to one application and one environment, the identity of the process using it, so a
-  service only ever reads its own configuration set. Each datastore backend provides one.
+  service only ever reads its own configuration set. config-library and config-client provide
+  the implementations; datastore backends do not.
 
 ## Two ways to read configuration
 
@@ -68,25 +73,46 @@ Readers use `ConfigReader` (config-library needs only this, so it can run read-o
   can tell when a set has changed.
 - Each backend sets its own `maxSetBytes()`, measured by `SetSize` (UTF-8 bytes of key names and
   values). A write that would exceed it throws `SetTooLargeException` and changes nothing.
+- `validate(Access.READ | Access.READ_WRITE)` checks a datastore is usable before relying on it:
+  reachable, the right permissions for that access, and behaving as the contract needs. It
+  returns every check made; `requireOk()` throws listing the failures. Run it at startup.
+
+The testkit's `ConfigDatastoreContract` checks all of this, including under concurrent writers:
+no lost updates, one winner per expected version, and no version ever reused across creates and
+deletes.
 
 Backends that store a whole set as one document (S3, DynamoDB, etcd) can use `Changes` to apply a
 write, so they all interpret changes the same way.
 
 ### S3 backend
 
-`config-datastore-s3` stores each set as one JSON object, `{"version": n, "values": {...}}`, with
-the version also in object metadata so `version()` is a single `HEAD`:
+`config-datastore-s3` stores each set as one object:
 
 ```
-{prefix}sets/_{application}/_{environment}/{settings|metadata}   live sets (listed)
-{prefix}tombstones/_{application}/_{environment}/{type}          last version of a deleted set
+{prefix}sets/{application}/{environment}/{settings|metadata}   one object per set
+{prefix}_validate/{random}                                     short-lived validate() probes
 ```
 
-Names are URL-encoded and prefixed with `_`, so a `/` in a name never adds a level. Every write is
-one conditional request (`If-None-Match: *` to create, `If-Match` to update, a conditional delete
-to remove), which makes it atomic. Writes using `Versions.ANY` retry with jittered backoff when they
-lose a race. It needs an S3 service with conditional writes and deletes: Amazon S3, or RustFS
-(pinned to 1.0.4 in `docker-compose.yml` and the tests).
+- A live set is JSON, `{"format":1,"version":n,"values":{...}}`, with the version and state also
+  in object metadata, so `version()` is a single `HEAD`. Readers ignore unknown fields; a change
+  older readers cannot ignore must raise `format`, which older readers then refuse clearly.
+- A set's key is never removed. **Deleting** overwrites the set with a 16-byte marker (the version
+  in hex) that keeps its version; **creating** it again overwrites the marker. Every live document
+  is longer than 16 bytes, so listings skip markers using the sizes S3 already returns.
+- So every write (create, update or delete) is **one conditional request on one key**:
+  `If-Match` on the ETag just read, or `If-None-Match: *` for a key never used. Any other write in
+  between changes the ETag and fails the request, so writes are atomic and a version is never
+  reused, even across a delete.
+- A write that loses a race starts again from a fresh read. With a specific expected version that
+  ends in a `VersionConflictException` carrying the real current version; with `Versions.ANY` it
+  retries with jittered backoff, up to 50 attempts.
+
+It needs an S3 service that enforces conditional writes: Amazon S3, or RustFS (pinned to 1.0.4 in
+`docker-compose.yml` and `RustFs.java` in the tests). Permissions: readers need `s3:ListBucket`
+and `s3:GetObject` (without `ListBucket`, S3 answers 403 instead of 404 for a missing set);
+writers also need `s3:PutObject`. Objects are never deleted, so `s3:DeleteObject` is needed only to
+clean up `validate()` probes. `validate()` checks all of this, including that the store really
+rejects a stale `If-Match` and a repeated `If-None-Match`.
 
 ### Export
 
@@ -116,6 +142,9 @@ artifacts run on Java 21 and later.
 - The export format.
 - HTTP framework for `config-server`.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.
-- Storage layout for the remaining backends (S3 uses one object per set; the same approach likely
-  suits DynamoDB and etcd), and how environments inherit or override values.
+- Storage layout for the remaining backends (S3 uses one object per set with a deleted-set marker;
+  the same approach likely suits DynamoDB and etcd), and how environments inherit or override
+  values.
+- Cleaning up deleted-set markers. They are 16 bytes each and keep versions monotonic, so they are
+  kept for now.
 - History of configuration sets (each set already has a version that only increases).

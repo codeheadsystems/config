@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.codeheadsystems.config.datastore.Access;
 import com.codeheadsystems.config.datastore.Change;
 import com.codeheadsystems.config.datastore.ConfigDatastore;
 import com.codeheadsystems.config.datastore.SetId;
@@ -11,6 +12,7 @@ import com.codeheadsystems.config.datastore.SetSize;
 import com.codeheadsystems.config.datastore.SetTooLargeException;
 import com.codeheadsystems.config.datastore.SetType;
 import com.codeheadsystems.config.datastore.Snapshot;
+import com.codeheadsystems.config.datastore.ValidationResult;
 import com.codeheadsystems.config.datastore.VersionConflictException;
 import com.codeheadsystems.config.datastore.Versions;
 import com.codeheadsystems.config.model.Application;
@@ -18,10 +20,18 @@ import com.codeheadsystems.config.model.Environment;
 import com.codeheadsystems.config.model.Key;
 import com.codeheadsystems.config.model.Value;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -726,5 +736,220 @@ public abstract class ConfigDatastoreContract {
         assertThat(datastore.find(SETTINGS, key)).isEqualTo(Optional.ofNullable(snapshot.values().get(key)));
       }
     }
+  }
+
+  /** Validation of a correctly configured datastore. */
+  @Nested
+  class Validation {
+
+    @Test
+    void readValidationPasses() {
+      final ValidationResult result = datastore.validate(Access.READ);
+
+      assertThat(result.access()).isEqualTo(Access.READ);
+      assertThat(result.checks()).isNotEmpty();
+      assertThat(result.failures()).isEmpty();
+      assertThat(result.requireOk()).isSameAs(result);
+    }
+
+    @Test
+    void readWriteValidationPasses() {
+      final ValidationResult result = datastore.validate(Access.READ_WRITE);
+
+      assertThat(result.access()).isEqualTo(Access.READ_WRITE);
+      assertThat(result.failures()).isEmpty();
+    }
+
+    @Test
+    void validationNeverCreatesOrChangesASet() {
+      final long version = create(SETTINGS, Map.of(URL, URL_VALUE));
+
+      datastore.validate(Access.READ_WRITE);
+
+      assertThat(datastore.applications()).containsExactly(BILLING);
+      assertThat(datastore.types(BILLING, PROD)).containsExactly(SetType.SETTINGS);
+      assertThat(datastore.version(SETTINGS)).isEqualTo(version);
+    }
+
+    @Test
+    void validationOfAnEmptyStoreLeavesItEmpty() {
+      datastore.validate(Access.READ_WRITE);
+
+      assertThat(datastore.applications()).isEmpty();
+    }
+  }
+
+  /**
+   * Concurrent writers. Backends must get these right under real contention, not just in
+   * sequence; a lost update or a reused version here is a correctness bug.
+   */
+  @Nested
+  class Concurrency {
+
+    private static final int WRITERS = 8;
+
+    /** Runs the tasks at the same moment and returns their results, rethrowing any failure. */
+    private <T> List<T> together(final List<Callable<T>> tasks) throws Exception {
+      final ExecutorService pool = Executors.newFixedThreadPool(tasks.size());
+      try {
+        final CountDownLatch start = new CountDownLatch(1);
+        final List<Future<T>> futures = new ArrayList<>();
+        for (final Callable<T> task : tasks) {
+          futures.add(pool.submit(() -> {
+            start.await();
+            return task.call();
+          }));
+        }
+        start.countDown();
+        final List<T> results = new ArrayList<>();
+        for (final Future<T> future : futures) {
+          results.add(future.get(2, TimeUnit.MINUTES));
+        }
+        return results;
+      } finally {
+        pool.shutdownNow();
+      }
+    }
+
+    private <T> List<Callable<T>> times(final int count, final IntTask<T> task) {
+      final List<Callable<T>> tasks = new ArrayList<>();
+      for (int i = 0; i < count; i++) {
+        final int n = i;
+        tasks.add(() -> task.run(n));
+      }
+      return tasks;
+    }
+
+    @Test
+    void writersIgnoringVersionsNeverLoseAnUpdate() throws Exception {
+      create(SETTINGS, Map.of());
+
+      final List<Long> versions = together(times(WRITERS,
+        n -> datastore.put(SETTINGS, Versions.ANY, Key.from("writer." + n), new Value("v" + n))));
+
+      assertThat(loaded(SETTINGS).values()).hasSize(WRITERS);
+      assertThat(versions).doesNotHaveDuplicates();
+      assertThat(datastore.version(SETTINGS)).isEqualTo(Collections.max(versions));
+    }
+
+    @Test
+    void writersExpectingTheSameVersionHaveExactlyOneWinner() throws Exception {
+      final long version = create(SETTINGS, Map.of());
+
+      final List<Boolean> won = together(times(WRITERS, n -> {
+        try {
+          datastore.put(SETTINGS, version, Key.from("winner"), new Value("w" + n));
+          return true;
+        } catch (final VersionConflictException e) {
+          assertThat(e.actualVersion()).as("a conflict reports the version that won").isGreaterThan(version);
+          return false;
+        }
+      }));
+
+      assertThat(won).containsOnlyOnce(true);
+      assertThat(datastore.version(SETTINGS)).isGreaterThan(version);
+    }
+
+    @Test
+    void concurrentCreatorsHaveExactlyOneWinner() throws Exception {
+      final List<Boolean> won = together(times(WRITERS, n -> {
+        try {
+          datastore.put(SETTINGS, Versions.NONE, Key.from("creator"), new Value("c" + n));
+          return true;
+        } catch (final VersionConflictException e) {
+          return false;
+        }
+      }));
+
+      assertThat(won).containsOnlyOnce(true);
+    }
+
+    @Test
+    void deletersExpectingTheSameVersionHaveExactlyOneWinner() throws Exception {
+      final long version = create(SETTINGS, Map.of(URL, URL_VALUE));
+
+      final List<Boolean> won = together(times(WRITERS, n -> {
+        try {
+          return datastore.delete(SETTINGS, version);
+        } catch (final VersionConflictException e) {
+          return false;
+        }
+      }));
+
+      assertThat(won).containsOnlyOnce(true);
+      assertThat(datastore.load(SETTINGS)).isEmpty();
+      assertThat(create(SETTINGS, Map.of())).isGreaterThan(version);
+    }
+
+    /**
+     * Writers repeatedly create and delete the same set while a reader watches its version. No
+     * version may ever be handed out twice, and the reader must never see it go backwards.
+     */
+    @Test
+    void versionsAreNeverReusedAcrossCreatesAndDeletes() throws Exception {
+      final List<Long> created = Collections.synchronizedList(new ArrayList<>());
+      final List<Long> seen = Collections.synchronizedList(new ArrayList<>());
+      final AtomicBoolean running = new AtomicBoolean(true);
+      final ExecutorService reader = Executors.newSingleThreadExecutor();
+      final Future<?> watching = reader.submit(() -> {
+        while (running.get()) {
+          final long version = datastore.version(SETTINGS);
+          if (version != Versions.NONE) {
+            seen.add(version);
+          }
+        }
+      });
+      try {
+        together(times(4, n -> {
+          for (int round = 0; round < 8; round++) {
+            try {
+              final long version = datastore.put(SETTINGS, Versions.NONE, URL, new Value(n + "-" + round));
+              created.add(version);
+              datastore.delete(SETTINGS, version);
+            } catch (final VersionConflictException e) {
+              // another writer holds the set right now; try again next round
+            }
+          }
+          return null;
+        }));
+      } finally {
+        running.set(false);
+        watching.get(1, TimeUnit.MINUTES);
+        reader.shutdownNow();
+      }
+
+      assertThat(created).as("versions given to successful creates").isNotEmpty().doesNotHaveDuplicates();
+      assertThat(seen).as("versions a reader saw, in order").isSorted();
+    }
+
+    /** Writers ignoring versions race a deleter: every write still gets a version of its own. */
+    @Test
+    void writersRacingADeleterNeverShareAVersion() throws Exception {
+      create(SETTINGS, Map.of());
+      final List<Callable<List<Long>>> tasks = new ArrayList<>(times(4, n -> {
+        final List<Long> versions = new ArrayList<>();
+        for (int round = 0; round < 6; round++) {
+          versions.add(datastore.put(SETTINGS, Versions.ANY, Key.from("w" + n), new Value("r" + round)));
+        }
+        return versions;
+      }));
+      tasks.add(() -> {
+        for (int round = 0; round < 6; round++) {
+          datastore.delete(SETTINGS, Versions.ANY);
+        }
+        return List.of();
+      });
+
+      final List<Long> all = new ArrayList<>();
+      together(tasks).forEach(all::addAll);
+
+      assertThat(all).doesNotHaveDuplicates();
+    }
+  }
+
+  /** A task given its index. */
+  @FunctionalInterface
+  private interface IntTask<T> {
+    T run(int n) throws Exception;
   }
 }

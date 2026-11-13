@@ -1,6 +1,7 @@
 package com.codeheadsystems.config.datastore.memory;
 
 import com.codeheadsystems.config.datastore.ConfigDatastore;
+import com.codeheadsystems.config.datastore.ConfigDatastoreException;
 import com.codeheadsystems.config.datastore.ConfigDatastoreProvider;
 import com.codeheadsystems.config.model.Configuration;
 import com.codeheadsystems.config.model.Value;
@@ -36,8 +37,16 @@ public final class InMemoryConfigDatastoreProvider implements ConfigDatastorePro
   public ConfigDatastore create(final Configuration options) {
     final long maxSetBytes = options.find("max-set-bytes")
       .map(Value::value)
-      .map(Long::parseLong)
+      .map(InMemoryConfigDatastoreProvider::parseLong)
       .orElse(InMemoryConfigDatastore.DEFAULT_MAX_SET_BYTES);
     return new InMemoryConfigDatastore(maxSetBytes);
+  }
+
+  private static long parseLong(final String value) {
+    try {
+      return Long.parseLong(value.trim());
+    } catch (final NumberFormatException e) {
+      throw new ConfigDatastoreException("The memory datastore's 'max-set-bytes' must be a number: '" + value + "'", e);
+    }
   }
 }

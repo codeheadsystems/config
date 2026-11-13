@@ -1,6 +1,7 @@
 plugins {
     id("buildlogic.java-library-conventions")
-    id("buildlogic.publish-conventions")
+    // Not published yet: this module is a placeholder. Add buildlogic.publish-conventions (and a
+    // constraint in config-bom) when it has a real implementation.
 }
 
 description = "PostgreSQL datastore backend"

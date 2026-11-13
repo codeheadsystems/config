@@ -4,29 +4,27 @@ import com.codeheadsystems.config.datastore.SetId;
 import com.codeheadsystems.config.datastore.SetType;
 import com.codeheadsystems.config.model.Application;
 import com.codeheadsystems.config.model.Environment;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * The object keys a datastore uses, all under one prefix:
  *
  * <pre>
- * {prefix}sets/_{application}/_{environment}/{type}        a live set
- * {prefix}tombstones/_{application}/_{environment}/{type}  the last version of a deleted set
+ * {prefix}sets/{application}/{environment}/{settings|metadata}   one object per set
+ * {prefix}_validate/{random}                                       probes written by validate()
  * </pre>
  *
- * <p>Application and environment names are URL-encoded, so a {@code /} in a name cannot create a
- * new level, and prefixed with {@code _}, so an empty name is still a segment.
+ * <p>Application and environment names are validated by the model (lowercase letters, digits,
+ * {@code -} and {@code _}), so they are always safe as key segments and need no encoding. Probe
+ * keys start with {@code _}, which no application name can, and sit outside {@code sets/}.
  */
 final class S3Keys {
 
   private static final String SETS = "sets/";
-  private static final String TOMBSTONES = "tombstones/";
-  private static final String SEGMENT_MARKER = "_";
+  private static final String PROBES = "_validate/";
 
   private final String prefix;
 
@@ -39,77 +37,63 @@ final class S3Keys {
     return prefix;
   }
 
-  String live(final SetId id) {
+  String set(final SetId id) {
     return environmentPrefix(id.application(), id.environment()) + typeName(id.type());
   }
 
-  String tombstone(final SetId id) {
-    return prefix + TOMBSTONES + segment(id.application().value()) + "/" + segment(id.environment().value())
-      + "/" + typeName(id.type());
+  /** A fresh key for a validation probe; never a set. */
+  String probe() {
+    return prefix + PROBES + UUID.randomUUID();
   }
 
-  /** Where the live sets' applications are listed: one common prefix per application. */
-  String applicationsPrefix() {
+  /** The prefix every set is under. */
+  String setsPrefix() {
     return prefix + SETS;
   }
 
-  /** Where an application's environments are listed: one common prefix per environment. */
+  /** The prefix every set of an application is under. */
   String applicationPrefix(final Application application) {
-    return applicationsPrefix() + segment(application.value()) + "/";
+    return setsPrefix() + application.value() + "/";
   }
 
-  /** Where an environment's sets are listed: one object per set type. */
+  /** The prefix every set of an application in an environment is under. */
   String environmentPrefix(final Application application, final Environment environment) {
-    return applicationPrefix(application) + segment(environment.value()) + "/";
+    return applicationPrefix(application) + environment.value() + "/";
   }
 
   /**
-   * Decodes the name in a common prefix such as {@code config/sets/_billing/}.
+   * The set an object key belongs to.
    *
-   * @param parent       the prefix that was listed.
-   * @param commonPrefix one common prefix returned by the listing.
-   * @return the decoded name, or empty if the prefix is not one of ours.
+   * @param key an object key from a listing.
+   * @return the set, or empty if the key is not one of ours (wrong place, invalid names, or an
+   *         unknown type).
    */
-  Optional<String> nameIn(final String parent, final String commonPrefix) {
-    if (!commonPrefix.startsWith(parent) || !commonPrefix.endsWith("/")) {
+  Optional<SetId> parse(final String key) {
+    if (!key.startsWith(setsPrefix())) {
       return Optional.empty();
     }
-    return decode(commonPrefix.substring(parent.length(), commonPrefix.length() - 1));
+    final String[] parts = key.substring(setsPrefix().length()).split("/", -1);
+    if (parts.length != 3) {
+      return Optional.empty();
+    }
+    final Optional<SetType> type = typeOf(parts[2]);
+    if (type.isEmpty()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(new SetId(Application.from(parts[0]), Environment.from(parts[1]), type.get()));
+    } catch (final IllegalArgumentException e) {
+      return Optional.empty(); // not a valid name, so not written by us
+    }
   }
 
-  /**
-   * The set type of an object listed under an environment prefix.
-   *
-   * @param parent the environment prefix that was listed.
-   * @param key    one object key returned by the listing.
-   * @return the type, or empty if the key is not a set.
-   */
-  Optional<SetType> typeIn(final String parent, final String key) {
-    if (!key.startsWith(parent)) {
-      return Optional.empty();
-    }
-    final String name = key.substring(parent.length());
+  private static Optional<SetType> typeOf(final String name) {
     for (final SetType type : SetType.values()) {
       if (typeName(type).equals(name)) {
         return Optional.of(type);
       }
     }
     return Optional.empty();
-  }
-
-  static String segment(final String name) {
-    return SEGMENT_MARKER + URLEncoder.encode(name, StandardCharsets.UTF_8);
-  }
-
-  static Optional<String> decode(final String segment) {
-    if (!segment.startsWith(SEGMENT_MARKER) || segment.contains("/")) {
-      return Optional.empty();
-    }
-    try {
-      return Optional.of(URLDecoder.decode(segment.substring(SEGMENT_MARKER.length()), StandardCharsets.UTF_8));
-    } catch (final IllegalArgumentException e) {
-      return Optional.empty(); // not written by us
-    }
   }
 
   private static String typeName(final SetType type) {

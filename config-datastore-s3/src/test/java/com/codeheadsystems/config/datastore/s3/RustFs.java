@@ -3,6 +3,7 @@ package com.codeheadsystems.config.datastore.s3;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
+import com.codeheadsystems.config.datastore.testkit.TestEnvironment;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -30,8 +31,9 @@ final class RustFs {
   private RustFs() {
   }
 
-  static boolean dockerAvailable() {
-    return DockerClientFactory.instance().isDockerAvailable();
+  /** Skips the calling tests without Docker, or fails them on CI (see TestEnvironment). */
+  static void requireDocker() {
+    TestEnvironment.require(DockerClientFactory.instance().isDockerAvailable(), "Docker");
   }
 
   @SuppressWarnings("resource") // closed by Testcontainers at JVM exit

@@ -10,24 +10,26 @@ Licensed under the [MIT License](LICENSE).
 
 ## Repository layout
 
-| Path | What it is |
-|------|------------|
-| `config-model/` | Core domain types (applications, environments, keys, values). No I/O. |
-| `config-datastore/` | Datastore SPI that every backend implements, plus an in-memory backend. |
-| `config-datastore-postgresql/` | PostgreSQL backend. |
-| `config-datastore-dynamodb/` | DynamoDB backend. |
-| `config-datastore-etcd/` | etcd backend. |
-| `config-datastore-s3/` | Amazon S3 backend (also works with RustFS). |
-| `config-datastore-testkit/` | Contract tests every backend must pass. |
-| `config-library/` | In-process Java library that reads a datastore directly. |
-| `config-client/` | Java client for the config service HTTP API. |
-| `config-server/` | The config service. |
-| `config-bom/` | BOM aligning every published `config-*` module. |
-| `config-integ/` | End-to-end tests against real datastores. Not published. |
-| `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. |
-| `rust/` | Cargo workspace: `config-model`, `config-client`, `config-library`. |
-| `buildSrc/` | Gradle convention plugins. |
-| `docs/` | Design and usage documentation. |
+| Path | What it is | Status |
+|------|------------|--------|
+| `config-model/` | Core domain types (applications, environments, keys, values). No I/O. | Published |
+| `config-datastore/` | Datastore SPI that every backend implements, plus an in-memory backend. | Published |
+| `config-datastore-s3/` | Amazon S3 backend (also works with RustFS). | Published |
+| `config-datastore-testkit/` | Contract tests every backend must pass. | Published |
+| `config-datastore-postgresql/` | PostgreSQL backend. | Placeholder |
+| `config-datastore-dynamodb/` | DynamoDB backend. | Placeholder |
+| `config-datastore-etcd/` | etcd backend. | Placeholder |
+| `config-library/` | In-process Java library that reads a datastore directly. | Placeholder |
+| `config-client/` | Java client for the config service HTTP API. | Placeholder |
+| `config-server/` | The config service. | Placeholder |
+| `config-bom/` | BOM aligning every published `config-*` module. | Published |
+| `config-integ/` | End-to-end tests against real datastores. | Not published |
+| `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
+| `rust/` | Cargo workspace: `config-model`, `config-client`, `config-library`. | |
+| `buildSrc/` | Gradle convention plugins. | |
+| `docs/` | Design and usage documentation. | |
+
+Placeholder modules are not published and are not in the BOM until they are implemented.
 
 ## Building
 
@@ -56,7 +58,11 @@ Java artifacts are published to Maven Central under group `com.codeheadsystems` 
 ```kotlin
 dependencies {
     implementation(platform("com.codeheadsystems:config-bom:<version>"))
-    implementation("com.codeheadsystems:config-library")
-    runtimeOnly("com.codeheadsystems:config-datastore-postgresql")
+    implementation("com.codeheadsystems:config-model")
+    implementation("com.codeheadsystems:config-datastore")
+    runtimeOnly("com.codeheadsystems:config-datastore-s3")
 }
 ```
+
+`config-library` and `config-client`, the usual entry points for applications, are not published
+yet.

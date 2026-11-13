@@ -7,6 +7,10 @@ description = "Core configuration domain model: applications, environments, keys
 
 dependencies {
     api(libs.slf4j.api)
+}
 
-    testImplementation(libs.bundles.test)
+// config-model is the API every application codes against: with -Werror, a public or protected
+// element without Javadoc fails the build here (other modules only check the Javadoc they have).
+tasks.compileJava {
+    options.compilerArgs.add("-Xdoclint:all/protected")
 }

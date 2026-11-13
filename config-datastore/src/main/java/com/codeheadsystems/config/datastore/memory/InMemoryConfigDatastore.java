@@ -1,5 +1,6 @@
 package com.codeheadsystems.config.datastore.memory;
 
+import com.codeheadsystems.config.datastore.Access;
 import com.codeheadsystems.config.datastore.Change;
 import com.codeheadsystems.config.datastore.Changes;
 import com.codeheadsystems.config.datastore.ConfigDatastore;
@@ -8,6 +9,7 @@ import com.codeheadsystems.config.datastore.SetSize;
 import com.codeheadsystems.config.datastore.SetTooLargeException;
 import com.codeheadsystems.config.datastore.SetType;
 import com.codeheadsystems.config.datastore.Snapshot;
+import com.codeheadsystems.config.datastore.ValidationResult;
 import com.codeheadsystems.config.datastore.VersionConflictException;
 import com.codeheadsystems.config.datastore.Versions;
 import com.codeheadsystems.config.model.Application;
@@ -134,6 +136,13 @@ public final class InMemoryConfigDatastore implements ConfigDatastore {
     }
     sets.put(id, new Stored(null, stored.version()));
     return true;
+  }
+
+  @Override
+  public ValidationResult validate(final Access access) {
+    Objects.requireNonNull(access, "access must not be null");
+    return new ValidationResult("memory", access,
+      List.of(ValidationResult.Check.passed("store", "in memory; always reachable and writable")));
   }
 
   @Override

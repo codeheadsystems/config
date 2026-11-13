@@ -26,9 +26,10 @@ services:
       - "2379:2379"
 
   # S3-compatible object store for the S3 backend. Pinned: the S3 contract tests run against the
-  # same version (RUSTFS_IMAGE in S3ConfigDatastoreContractTest); change both together.
+  # same version (RUSTFS_IMAGE in config-datastore-s3's test RustFs.java); change both together.
   # Console at http://localhost:9001. Create the bucket before use, for example:
   #   aws --endpoint-url http://localhost:9000 s3 mb s3://config
+  # (the tests use their own container and bucket, config-test, not this one).
   rustfs:
     image: rustfs/rustfs:1.0.4
     environment:

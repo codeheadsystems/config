@@ -26,7 +26,7 @@ class ConfigurationFactoryTest {
       .with(environment)
       .with(store)
       .build()
-      .build();
+      .configuration();
   }
 
   // The factory
@@ -39,7 +39,7 @@ class ConfigurationFactoryTest {
       .with(store)
       .build();
 
-    final Configuration configuration = factory.build();
+    final Configuration configuration = factory.configuration();
 
     assertThat(configuration.get("database.url")).isEqualTo(new Value("jdbc:postgresql://prod/billing"));
     assertThat(configuration.get("timeout")).isEqualTo(new Value("30s"));
@@ -73,7 +73,7 @@ class ConfigurationFactoryTest {
     final ConfigurationFactory factory = InMemoryConfigurationFactory.builder()
       .with(BILLING).with(PROD).with(store).build();
 
-    assertThat(factory.build().get("timeout")).isEqualTo(factory.build().get("timeout"));
+    assertThat(factory.configuration().get("timeout")).isEqualTo(factory.configuration().get("timeout"));
   }
 
   // The test backend's choice; each backend decides what an unknown application or environment means.
@@ -92,7 +92,7 @@ class ConfigurationFactoryTest {
       .with(BILLING)
       .build();
 
-    assertThat(factory.build().get("timeout")).isEqualTo(new Value("30s"));
+    assertThat(factory.configuration().get("timeout")).isEqualTo(new Value("30s"));
   }
 
   @Test
@@ -105,7 +105,7 @@ class ConfigurationFactoryTest {
       .with(store)
       .build();
 
-    assertThat(factory.build().get("database.url")).isEqualTo(new Value("jdbc:postgresql://prod/billing"));
+    assertThat(factory.configuration().get("database.url")).isEqualTo(new Value("jdbc:postgresql://prod/billing"));
   }
 
   @Test

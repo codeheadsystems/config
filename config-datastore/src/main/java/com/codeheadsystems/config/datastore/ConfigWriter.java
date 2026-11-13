@@ -33,7 +33,9 @@ public interface ConfigWriter {
    * Deletes a whole set. Its version is kept, so a set created again later continues from it.
    *
    * @param id              the set.
-   * @param expectedVersion the set's current version, or {@link Versions#ANY} to skip the check.
+   * @param expectedVersion the set's current version, {@link Versions#NONE} to accept only a set that
+   *                        does not exist (so the call returns false), or {@link Versions#ANY} to skip
+   *                        the check.
    * @return true if the set existed and was deleted; false if it did not exist.
    * @throws VersionConflictException if the set's version does not match {@code expectedVersion}.
    */

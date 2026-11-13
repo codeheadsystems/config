@@ -28,7 +28,7 @@ final class InMemoryConfigurationFactory implements ConfigurationFactory {
   }
 
   @Override
-  public Configuration build() {
+  public Configuration configuration() {
     return Configuration.builder().with(store.values(application, environment)).build();
   }
 

@@ -26,7 +26,8 @@ include("config-datastore-postgresql")
 include("config-datastore-dynamodb")
 include("config-datastore-etcd")
 include("config-datastore-s3")
-// Contract tests every backend must pass (published as test fixtures for third-party backends).
+// Contract tests every backend must pass. Published as an ordinary library, so third-party backends
+// can extend the same contract in their own tests.
 include("config-datastore-testkit")
 
 // In-process library: reads a datastore directly, with caching and refresh.

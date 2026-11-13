@@ -8,16 +8,16 @@ import java.util.Objects;
  * running (such as {@code test} or {@code prod}). A service reads only its own configuration set,
  * so a factory never serves another application or environment.
  *
- * <p>Each datastore backend provides an implementation, along with a {@link Builder} subclass that
- * collects whatever else the backend needs, such as a data source.
+ * <p>config-library and config-client provide the implementations, each with a {@link Builder}
+ * subclass that collects whatever else it needs, such as a datastore or the service's URL.
  *
  * <pre>{@code
- * ConfigurationFactory factory = PostgresConfigurationFactory.builder()
+ * ConfigurationFactory factory = LibraryConfigurationFactory.builder()
  *     .with(Application.from("billing"))
  *     .with(Environment.from("prod"))
- *     .with(dataSource)
+ *     .with(datastore)
  *     .build();
- * Configuration configuration = factory.build();
+ * Configuration configuration = factory.configuration();
  * }</pre>
  */
 public interface ConfigurationFactory {
@@ -27,7 +27,7 @@ public interface ConfigurationFactory {
    *
    * @return the configuration.
    */
-  Configuration build();
+  Configuration configuration();
 
   /**
    * Base builder for a {@link ConfigurationFactory}. It holds the application and environment;
@@ -40,14 +40,29 @@ public interface ConfigurationFactory {
     private Application application;
     private Environment environment;
 
+    /**
+     * For subclasses.
+     */
     protected Builder() {
     }
 
+    /**
+     * Sets the application. A later call replaces it.
+     *
+     * @param application the application.
+     * @return this builder.
+     */
     public B with(final Application application) {
       this.application = Objects.requireNonNull(application, "application must not be null");
       return self();
     }
 
+    /**
+     * Sets the environment. A later call replaces it.
+     *
+     * @param environment the environment.
+     * @return this builder.
+     */
     public B with(final Environment environment) {
       this.environment = Objects.requireNonNull(environment, "environment must not be null");
       return self();
