@@ -25,6 +25,7 @@ include("config-datastore")
 include("config-datastore-postgresql")
 include("config-datastore-dynamodb")
 include("config-datastore-etcd")
+include("config-datastore-s3")
 // Contract tests every backend must pass (published as test fixtures for third-party backends).
 include("config-datastore-testkit")
 

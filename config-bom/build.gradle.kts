@@ -20,6 +20,7 @@ dependencies {
         api(project(":config-datastore-postgresql"))
         api(project(":config-datastore-dynamodb"))
         api(project(":config-datastore-etcd"))
+        api(project(":config-datastore-s3"))
         api(project(":config-datastore-testkit"))
         api(project(":config-library"))
         api(project(":config-client"))

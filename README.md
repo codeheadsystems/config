@@ -1,7 +1,7 @@
 # config
 
 A configuration service and client libraries. Configuration is stored per **application** and
-**environment** in a pluggable datastore (PostgreSQL, DynamoDB, etcd, ...) and read either through
+**environment** in a pluggable datastore (PostgreSQL, DynamoDB, etcd, S3, ...) and read either through
 the config service's HTTP API or directly from the datastore with an in-process library.
 Configuration is property-based: flat keys (namespaced with dots, such as `database.url`) mapped to
 string values. Any datastore's data can be exported.
@@ -13,10 +13,11 @@ Licensed under the [MIT License](LICENSE).
 | Path | What it is |
 |------|------------|
 | `config-model/` | Core domain types (applications, environments, keys, values). No I/O. |
-| `config-datastore/` | Datastore SPI that every backend implements. |
+| `config-datastore/` | Datastore SPI that every backend implements, plus an in-memory backend. |
 | `config-datastore-postgresql/` | PostgreSQL backend. |
 | `config-datastore-dynamodb/` | DynamoDB backend. |
 | `config-datastore-etcd/` | etcd backend. |
+| `config-datastore-s3/` | Amazon S3 backend. |
 | `config-datastore-testkit/` | Contract tests every backend must pass. |
 | `config-library/` | In-process Java library that reads a datastore directly. |
 | `config-client/` | Java client for the config service HTTP API. |

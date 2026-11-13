@@ -17,6 +17,7 @@ testcontainers = "2.0.5"
 assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awsSdk" }
 aws-sdk-dynamodb = { module = "software.amazon.awssdk:dynamodb" }
+aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }

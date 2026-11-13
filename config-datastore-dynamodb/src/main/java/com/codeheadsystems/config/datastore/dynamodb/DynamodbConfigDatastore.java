@@ -1,11 +1,10 @@
 package com.codeheadsystems.config.datastore.dynamodb;
 
-import com.codeheadsystems.config.datastore.ConfigDatastore;
-
 /**
- * The Dynamodb implementation of {@link ConfigDatastore}.
+ * The Dynamodb implementation of {@link com.codeheadsystems.config.datastore.ConfigDatastore}. Not built
+ * yet; it will implement the interface and pass the config-datastore-testkit contract.
  */
-public final class DynamodbConfigDatastore implements ConfigDatastore {
+public final class DynamodbConfigDatastore {
 
   /**
    * Creates the datastore.

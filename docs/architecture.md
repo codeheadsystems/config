@@ -27,9 +27,9 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
                    +----------------+                             v
  app (Java/Rust)-->| config-library |-------------------> config-datastore SPI
                    +----------------+                             |
-                                        +-------------+-----------+-----------+
-                                        v             v                       v
-                                   postgresql      dynamodb                  etcd
+                                  +-------------+-------------+-------------+
+                                  v             v             v             v
+                             postgresql     dynamodb         etcd           s3
 ```
 
 1. **Through the service.** Clients call `config-server` over HTTP. The API contract lives in
@@ -41,15 +41,42 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
 ## Datastores
 
 `config-datastore` defines the SPI. Each backend is its own module so an application only pulls in
-the driver it uses, and backends are discovered with `java.util.ServiceLoader`.
+the driver it uses, and backends are discovered with `java.util.ServiceLoader` through
+`ConfigDatastoreProvider` (`ConfigDatastores.open(name, options)`).
 `config-datastore-testkit` holds the contract tests; every backend's test suite extends them, so
-all backends behave identically.
+all backends behave identically. `config-datastore` also ships an in-memory backend (`memory`),
+the reference implementation the contract is checked against.
+
+### Sets
+
+A datastore holds **sets** of keys and values, one per application, environment and set type
+(`SetId`):
+
+- **`SETTINGS`**: the values served to the application. This is the only set config-client or
+  config-library ever reads.
+- **`METADATA`**: information the config service keeps about the application in that environment.
+  Never served to the application.
+
+Readers use `ConfigReader` (config-library needs only this, so it can run read-only). Writers use
+`ConfigWriter`:
+
+- `apply(id, expectedVersion, changes)` makes a list of changes (`Put`, `Delete`, `Clear`)
+  atomically. `put`, `remove` and `replace` are built on it.
+- Every write takes an expected version: the set's current version, `Versions.NONE` ("only if it
+  does not exist") or `Versions.ANY` (no check). A mismatch throws `VersionConflictException`.
+- A set's version only ever increases, even across a delete, so a reader that remembers a version
+  can tell when a set has changed.
+- Each backend sets its own `maxSetBytes()`, measured by `SetSize` (UTF-8 bytes of key names and
+  values). A write that would exceed it throws `SetTooLargeException` and changes nothing.
+
+Backends that store a whole set as one document (S3, DynamoDB, etcd) can use `Changes` to apply a
+write, so they all interpret changes the same way.
 
 ### Export
 
 Exporting is a capability of `config-datastore` itself, not of any one backend: any datastore's
-data can be exported, so any store (PostgreSQL, DynamoDB, etcd) can produce a snapshot that seeds
-another. (Not built yet: the SPI first needs a way to list an application's environments and keys.)
+data can be exported, so any store can produce a snapshot that seeds another. (Not built yet; the
+SPI's listings, `applications()`, `environments()` and `types()`, give it what it needs.)
 
 ## Layering in config-library
 
@@ -73,5 +100,6 @@ artifacts run on Java 21 and later.
 - The export format.
 - HTTP framework for `config-server`.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.
-- Storage schema per backend, and how environments inherit or override values.
-- Versioning and history of configuration sets.
+- Storage layout per backend (one document per set is the likely choice for S3, DynamoDB and
+  etcd), and how environments inherit or override values.
+- History of configuration sets (each set already has a version that only increases).

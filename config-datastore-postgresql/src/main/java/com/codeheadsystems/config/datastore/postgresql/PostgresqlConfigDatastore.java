@@ -1,11 +1,10 @@
 package com.codeheadsystems.config.datastore.postgresql;
 
-import com.codeheadsystems.config.datastore.ConfigDatastore;
-
 /**
- * The Postgresql implementation of {@link ConfigDatastore}.
+ * The Postgresql implementation of {@link com.codeheadsystems.config.datastore.ConfigDatastore}. Not built
+ * yet; it will implement the interface and pass the config-datastore-testkit contract.
  */
-public final class PostgresqlConfigDatastore implements ConfigDatastore {
+public final class PostgresqlConfigDatastore {
 
   /**
    * Creates the datastore.

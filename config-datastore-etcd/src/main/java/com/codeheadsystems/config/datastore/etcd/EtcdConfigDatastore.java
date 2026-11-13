@@ -1,11 +1,10 @@
 package com.codeheadsystems.config.datastore.etcd;
 
-import com.codeheadsystems.config.datastore.ConfigDatastore;
-
 /**
- * The Etcd implementation of {@link ConfigDatastore}.
+ * The Etcd implementation of {@link com.codeheadsystems.config.datastore.ConfigDatastore}. Not built
+ * yet; it will implement the interface and pass the config-datastore-testkit contract.
  */
-public final class EtcdConfigDatastore implements ConfigDatastore {
+public final class EtcdConfigDatastore {
 
   /**
    * Creates the datastore.

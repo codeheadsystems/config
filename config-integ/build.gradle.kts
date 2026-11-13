@@ -11,6 +11,7 @@ dependencies {
     testImplementation(project(":config-datastore-postgresql"))
     testImplementation(project(":config-datastore-dynamodb"))
     testImplementation(project(":config-datastore-etcd"))
+    testImplementation(project(":config-datastore-s3"))
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgresql)
