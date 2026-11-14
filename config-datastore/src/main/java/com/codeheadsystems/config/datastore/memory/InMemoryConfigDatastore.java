@@ -16,6 +16,8 @@ import com.codeheadsystems.config.model.Application;
 import com.codeheadsystems.config.model.Environment;
 import com.codeheadsystems.config.model.Key;
 import com.codeheadsystems.config.model.Value;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,7 +31,11 @@ import java.util.stream.Stream;
 /**
  * A {@link ConfigDatastore} held in memory: for tests, and as the reference implementation of the
  * datastore contract. Nothing is persisted. Thread-safe.
+ *
+ * <p>A {@link Singleton} for dependency injection, so every consumer in a container shares one
+ * store; the {@linkplain Inject injectable} constructor uses the default size limit.
  */
+@Singleton
 public final class InMemoryConfigDatastore implements ConfigDatastore {
 
   /**
@@ -44,6 +50,7 @@ public final class InMemoryConfigDatastore implements ConfigDatastore {
   /**
    * Creates an empty datastore with the default size limit.
    */
+  @Inject
   public InMemoryConfigDatastore() {
     this(DEFAULT_MAX_SET_BYTES);
   }

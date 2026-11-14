@@ -4,6 +4,7 @@
 assertj = "3.27.7"
 awsSdk = "2.57.10"
 flyway = "13.12.1"
+jakartaInject = "2.0.1"
 jackson = "3.2.4"
 jdbi = "3.55.0"
 jetcd = "0.8.8"
@@ -20,6 +21,7 @@ aws-sdk-dynamodb = { module = "software.amazon.awssdk:dynamodb" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+jakarta-inject = { module = "jakarta.inject:jakarta.inject-api", version.ref = "jakartaInject" }
 jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind" }
 jdbi-core = { module = "org.jdbi:jdbi3-core", version.ref = "jdbi" }

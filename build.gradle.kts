@@ -18,7 +18,7 @@ dependencies {
     listOf(
         ":config-model",
         ":config-datastore",
-        ":config-datastore-postgresql",
+        ":config-datastore-sql",
         ":config-datastore-dynamodb",
         ":config-datastore-etcd",
         ":config-datastore-s3",

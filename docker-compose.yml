@@ -1,8 +1,10 @@
 # Local datastores for development and manual testing. Automated tests use Testcontainers instead.
 #   docker compose up -d
 services:
+  # Pinned: the SQL backend's tests run against the same version (POSTGRES_IMAGE in
+  # config-datastore-sql's test Postgres.java); change both together.
   postgres:
-    image: postgres:17
+    image: postgres:18.7
     environment:
       POSTGRES_DB: config
       POSTGRES_USER: config

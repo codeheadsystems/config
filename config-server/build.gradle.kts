@@ -9,7 +9,7 @@ dependencies {
     implementation(project(":config-datastore"))
 
     // Backends are selected at runtime through ServiceLoader; ship all of them.
-    runtimeOnly(project(":config-datastore-postgresql"))
+    runtimeOnly(project(":config-datastore-sql"))
     runtimeOnly(project(":config-datastore-dynamodb"))
     runtimeOnly(project(":config-datastore-etcd"))
     runtimeOnly(project(":config-datastore-s3"))

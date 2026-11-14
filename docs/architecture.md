@@ -34,7 +34,7 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
                    +----------------+                             |
                                   +-------------+-------------+-------------+
                                   v             v             v             v
-                             postgresql     dynamodb         etcd           s3
+                             sql (pg)       dynamodb         etcd           s3
 ```
 
 1. **Through the service.** Clients call `config-server` over HTTP. The API contract lives in
@@ -52,6 +52,17 @@ the driver it uses, and backends are discovered with `java.util.ServiceLoader` t
 `config-datastore-testkit` holds the contract tests; every backend's test suite extends them, so
 all backends behave identically. `config-datastore` also ships an in-memory backend (`memory`),
 the reference implementation the contract is checked against.
+
+### Dependency injection
+
+Classes meant to be built by a container carry the standard JSR-330 annotations from
+`jakarta.inject` (`@Inject` on the constructor, `@Singleton` where one instance should be shared),
+so Dagger, Spring, Guice or any other JSR-330 container can wire them. No container is a
+dependency: the application picks one. So far that covers `InMemoryConfigDatastore` (no
+arguments) and `SqlConfigDatastore` (needs a `Jdbi`, which the application provides over its own
+connection pool). Constructors that need plain values, such as a size limit, are left unannotated;
+call them from a provider method. `ServiceLoader` discovery through `ConfigDatastores` still works
+for applications without a container.
 
 ### Sets
 

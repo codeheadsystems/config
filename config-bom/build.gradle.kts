@@ -16,10 +16,11 @@ repositories {
 dependencies {
     constraints {
         // Only modules that are published. Placeholders (config-client, config-server and the
-        // postgresql, dynamodb and etcd backends) join when they are implemented.
+        // dynamodb and etcd backends) join when they are implemented.
         api(project(":config-model"))
         api(project(":config-datastore"))
         api(project(":config-datastore-s3"))
+        api(project(":config-datastore-sql"))
         api(project(":config-datastore-testkit"))
         api(project(":config-library"))
     }

@@ -15,8 +15,8 @@ Licensed under the [MIT License](LICENSE).
 | `config-model/` | Core domain types (applications, environments, keys, values). No I/O. | Published |
 | `config-datastore/` | Datastore SPI that every backend implements, plus an in-memory backend. | Published |
 | `config-datastore-s3/` | Amazon S3 backend (also works with RustFS). | Published |
+| `config-datastore-sql/` | SQL backend (PostgreSQL), on JDBI SqlObjects and Flyway. | Published |
 | `config-datastore-testkit/` | Contract tests every backend must pass. | Published |
-| `config-datastore-postgresql/` | PostgreSQL backend. | Placeholder |
 | `config-datastore-dynamodb/` | DynamoDB backend. | Placeholder |
 | `config-datastore-etcd/` | etcd backend. | Placeholder |
 | `config-library/` | In-process Java library that reads a datastore directly. | Published |

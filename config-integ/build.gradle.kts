@@ -8,7 +8,7 @@ dependencies {
     testImplementation(project(":config-server"))
     testImplementation(project(":config-client"))
     testImplementation(project(":config-library"))
-    testImplementation(project(":config-datastore-postgresql"))
+    testImplementation(project(":config-datastore-sql"))
     testImplementation(project(":config-datastore-dynamodb"))
     testImplementation(project(":config-datastore-etcd"))
     testImplementation(project(":config-datastore-s3"))

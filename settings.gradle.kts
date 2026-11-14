@@ -22,7 +22,7 @@ include("config-model")
 
 // Datastore SPI plus one module per backend. Backends are found via ServiceLoader.
 include("config-datastore")
-include("config-datastore-postgresql")
+include("config-datastore-sql")
 include("config-datastore-dynamodb")
 include("config-datastore-etcd")
 include("config-datastore-s3")
