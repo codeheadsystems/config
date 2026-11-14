@@ -4,7 +4,7 @@
  *
  *   ./gradlew build                              build and test everything
  *   ./gradlew testCodeCoverageReport             aggregated coverage
- *   ./gradlew publishAggregationToCentralPortal  release (see RELEASING.md, once written)
+ *   ./gradlew publishAggregationToCentralPortal  release (CI only; see RELEASING.md)
  */
 plugins {
     id("jacoco-report-aggregation")
@@ -21,6 +21,7 @@ dependencies {
         ":config-datastore-postgresql",
         ":config-datastore-dynamodb",
         ":config-datastore-etcd",
+        ":config-datastore-s3",
         ":config-datastore-testkit",
         ":config-library",
         ":config-client",

@@ -179,7 +179,7 @@ class ConfigurationFactoryTest {
   }
 
   /** A minimal backend builder that records what the base builder hands it. */
-  private static final class RecordingBuilder extends ConfigurationFactory.Builder<RecordingBuilder> {
+  private static final class RecordingBuilder extends ConfigurationFactory.Builder<RecordingBuilder, ConfigurationFactory> {
 
     private final List<Object> received;
 

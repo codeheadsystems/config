@@ -11,16 +11,21 @@ import java.util.Objects;
  * <p>config-library and config-client provide the implementations, each with a {@link Builder}
  * subclass that collects whatever else it needs, such as a datastore or the service's URL.
  *
+ * <p>A factory may hold resources, such as a refresh thread or connections; close it when the
+ * application shuts down. The configurations it handed out keep their last values.
+ *
  * <pre>{@code
- * ConfigurationFactory factory = LibraryConfigurationFactory.builder()
+ * try (ConfigurationFactory factory = LibraryConfigurationFactory.builder()
  *     .with(Application.from("billing"))
  *     .with(Environment.from("prod"))
- *     .with(datastore)
- *     .build();
- * Configuration configuration = factory.configuration();
+ *     .updates(datastore)
+ *     .build()) {
+ *   Configuration configuration = factory.configuration();
+ *   ...
+ * }
  * }</pre>
  */
-public interface ConfigurationFactory {
+public interface ConfigurationFactory extends AutoCloseable {
 
   /**
    * Produces the configuration for this factory's application and environment.
@@ -30,12 +35,20 @@ public interface ConfigurationFactory {
   Configuration configuration();
 
   /**
+   * Releases the factory's resources. Does nothing by default.
+   */
+  @Override
+  default void close() {
+  }
+
+  /**
    * Base builder for a {@link ConfigurationFactory}. It holds the application and environment;
    * backends extend it to add their own settings and implement {@link #build(Application, Environment)}.
    *
    * @param <B> the concrete builder type, so {@code with(...)} calls chain with the subclass's own methods.
+   * @param <F> the factory type the builder creates, so {@link #build()} returns it without a cast.
    */
-  abstract class Builder<B extends Builder<B>> {
+  abstract class Builder<B extends Builder<B, F>, F extends ConfigurationFactory> {
 
     private Application application;
     private Environment environment;
@@ -74,7 +87,7 @@ public interface ConfigurationFactory {
      * @return the factory.
      * @throws IllegalStateException if the application or environment is not set.
      */
-    public final ConfigurationFactory build() {
+    public final F build() {
       if (application == null) {
         throw new IllegalStateException("no application set");
       }
@@ -99,6 +112,6 @@ public interface ConfigurationFactory {
      * @param environment the environment, never null.
      * @return the factory.
      */
-    protected abstract ConfigurationFactory build(Application application, Environment environment);
+    protected abstract F build(Application application, Environment environment);
   }
 }

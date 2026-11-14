@@ -19,7 +19,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-datastore-postgresql/` | PostgreSQL backend. | Placeholder |
 | `config-datastore-dynamodb/` | DynamoDB backend. | Placeholder |
 | `config-datastore-etcd/` | etcd backend. | Placeholder |
-| `config-library/` | In-process Java library that reads a datastore directly. | Placeholder |
+| `config-library/` | In-process Java library that reads a datastore directly. | Published |
 | `config-client/` | Java client for the config service HTTP API. | Placeholder |
 | `config-server/` | The config service. | Placeholder |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
@@ -53,16 +53,16 @@ docker compose up -d
 
 ## Coordinates
 
-Java artifacts are published to Maven Central under group `com.codeheadsystems` (Java packages are `com.codeheadsystems.config.*`):
+Java artifacts are published to Maven Central under group `com.codeheadsystems` (Java packages are
+`com.codeheadsystems.config.*`). Nothing has been released yet; see [RELEASING.md](RELEASING.md).
 
 ```kotlin
 dependencies {
     implementation(platform("com.codeheadsystems:config-bom:<version>"))
-    implementation("com.codeheadsystems:config-model")
-    implementation("com.codeheadsystems:config-datastore")
+    implementation("com.codeheadsystems:config-library")
     runtimeOnly("com.codeheadsystems:config-datastore-s3")
 }
 ```
 
-`config-library` and `config-client`, the usual entry points for applications, are not published
+`config-client`, the entry point for applications that call the config service, is not published
 yet.

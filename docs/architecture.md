@@ -122,13 +122,40 @@ SPI's listings, `applications()`, `environments()` and `types()`, give it what i
 
 ## Layering in config-library
 
-`config-library` reads configuration from a stack of datastores:
+`LibraryConfigurationFactory` reads the application's `SETTINGS` set from a stack of datastores:
 
-1. **Defaults.** A datastore loaded first. This can be an export of the live datastore, which
-   gives the application a "cache load" to start from without reaching the live store.
-2. **Updates.** A second datastore attached on top. Values it holds override the defaults.
+1. **Updates.** A datastore, usually the live one, whose values take precedence.
+2. **Defaults.** A datastore read once when the factory is built. This can be an export of the live
+   datastore, which gives the application a "cache load" to start from without reaching the live
+   store.
 
-A key is looked up in the updates datastore first and falls back to the defaults.
+A key is looked up in the updates first and falls back to the defaults. Either layer may be left
+out, but not both. Lookups read in-memory copies, never a datastore, so they are cheap and never
+fail because a store is down.
+
+```java
+try (LibraryConfigurationFactory factory = LibraryConfigurationFactory.builder()
+    .with(Application.from("billing"))
+    .with(Environment.from("prod"))
+    .defaults(exportDatastore)
+    .updates(liveDatastore)
+    .build()) {
+  Configuration configuration = factory.configuration();
+}
+```
+
+- **Refresh.** A daemon thread checks the updates set's `version()` every 30 seconds
+  (`refreshInterval(...)`) and reloads the set only when the version has changed. Configurations
+  already handed out see the new values. `refreshInterval(Duration.ZERO)` turns the thread off;
+  the application calls `refresh()` itself.
+- **Updates unreachable at startup.** By default the factory serves the defaults alone, logs a
+  warning, and keeps trying on each refresh (`updatesLoaded()` reports whether it has caught up).
+  `requireUpdatesAtStartup(true)` makes `build()` throw instead.
+- **Failures later.** A failed refresh keeps the last values read and logs once until the store
+  recovers. Defaults that cannot be read fail the build.
+- **Deleted updates set.** Treated as empty, so every key falls back to the defaults.
+- **Lifecycle.** `ConfigurationFactory` is `AutoCloseable`; closing the library's factory stops
+  the refresh thread. The caller owns and closes the datastores.
 
 ## Java compatibility
 
@@ -137,8 +164,8 @@ artifacts run on Java 21 and later.
 
 ## Open decisions
 
-- How `config-library` refreshes the updates datastore (polling, watch, push), and what happens
-  when the updates datastore is unreachable at startup.
+- Push or watch refresh for `config-library`, for backends that support it (etcd watches), in
+  place of polling.
 - The export format.
 - HTTP framework for `config-server`.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.

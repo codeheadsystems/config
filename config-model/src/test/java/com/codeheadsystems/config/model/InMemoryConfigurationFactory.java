@@ -50,7 +50,7 @@ final class InMemoryConfigurationFactory implements ConfigurationFactory {
     }
   }
 
-  static final class Builder extends ConfigurationFactory.Builder<Builder> {
+  static final class Builder extends ConfigurationFactory.Builder<Builder, InMemoryConfigurationFactory> {
 
     private Store store;
 
@@ -68,7 +68,7 @@ final class InMemoryConfigurationFactory implements ConfigurationFactory {
     }
 
     @Override
-    protected ConfigurationFactory build(final Application application, final Environment environment) {
+    protected InMemoryConfigurationFactory build(final Application application, final Environment environment) {
       if (store == null) {
         throw new IllegalStateException("no store set");
       }
