@@ -10,12 +10,5 @@ dependencies = [
 ]
 
 [[package]]
-name = "config-library"
-version = "0.1.0"
-dependencies = [
- "config-model",
-]
-
-[[package]]
 name = "config-model"
 version = "0.1.0"

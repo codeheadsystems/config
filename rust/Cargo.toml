@@ -3,7 +3,6 @@ resolver = "3"
 members = [
     "config-model",
     "config-client",
-    "config-library",
 ]
 
 [workspace.package]

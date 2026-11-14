@@ -30,7 +30,7 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
                                                           +-------+-------+
                                                                   |
                    +----------------+                             v
- app (Java/Rust)-->| config-library |-------------------> config-datastore SPI
+ app (Java)     -->| config-library |-------------------> config-datastore SPI
                    +----------------+                             |
                                   +-------------+-------------+-------------+
                                   v             v             v             v
@@ -40,8 +40,9 @@ Keys are namespaced with `.` (`database.url`, `database.pool.size`), and
 1. **Through the service.** Clients call `config-server` over HTTP. The API contract lives in
    `openapi/config-api.yaml`; the Java `config-client` and the Rust `config-client` crate are
    built against it, and any other language can generate a client from it.
-2. **Directly from the datastore.** `config-library` (Java) and the `config-library` crate (Rust)
-   read the datastore themselves, for applications that should not depend on the service being up.
+2. **Directly from the datastore.** `config-library` reads the datastore itself, for Java
+   applications that should not depend on the service being up. It is Java only: the datastore
+   backends exist only in Java, so other languages, Rust included, read through the service.
 
 ## Datastores
 

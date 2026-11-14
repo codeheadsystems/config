@@ -25,7 +25,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores. | Not published |
 | `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
-| `rust/` | Cargo workspace: `config-model`, `config-client`, `config-library`. | |
+| `rust/` | Cargo workspace: `config-model` and `config-client`. Rust reads configuration only through the config service. | |
 | `buildSrc/` | Gradle convention plugins. | |
 | `docs/` | Design and usage documentation. | |
 
