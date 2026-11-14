@@ -1,15 +1,19 @@
 plugins {
     id("buildlogic.java-library-conventions")
-    // Not published yet: this module is a placeholder. Add buildlogic.publish-conventions (and a
-    // constraint in config-bom) when it has a real implementation.
+    id("buildlogic.publish-conventions")
 }
 
 description = "Amazon DynamoDB datastore backend"
 
 dependencies {
     api(project(":config-datastore"))
-    implementation(platform(libs.aws.sdk.bom))
-    implementation(libs.aws.sdk.dynamodb)
+    // Callers construct the datastore from their own DynamoDbClient, so it is part of the API.
+    api(platform(libs.aws.sdk.bom))
+    api(libs.aws.sdk.dynamodb)
+    // Standard JSR-330 annotations only; the caller picks the container (Dagger, Spring, Guice...).
+    api(libs.jakarta.inject)
 
     testImplementation(project(":config-datastore-testkit"))
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.junit)
 }

@@ -10,7 +10,8 @@ import com.codeheadsystems.config.model.Configuration;
 public interface ConfigDatastoreProvider {
 
   /**
-   * The backend's name, such as {@code sql} or {@code s3}. Must be unique on the classpath.
+   * The backend's name, which {@link ConfigDatastores#open} selects it by. Must be unique on the
+   * classpath.
    *
    * @return the name.
    */

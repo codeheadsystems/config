@@ -11,7 +11,7 @@ import java.util.TreeMap;
  * Finds datastore backends on the classpath and opens them by name.
  *
  * <pre>{@code
- * try (ConfigDatastore datastore = ConfigDatastores.open("sql", bootstrap.with("sql"))) {
+ * try (ConfigDatastore datastore = ConfigDatastores.open(name, bootstrap.with(name))) {
  *   ...
  * }
  * }</pre>
