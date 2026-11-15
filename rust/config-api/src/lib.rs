@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-#![allow(clippy::too_many_arguments)]
+#![allow(clippy::all)]
 
 extern crate serde_repr;
 extern crate serde;

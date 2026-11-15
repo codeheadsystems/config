@@ -17,10 +17,10 @@ Licensed under the [MIT License](LICENSE).
 | `config-datastore-s3/` | Amazon S3 backend (also works with RustFS). | Published |
 | `config-datastore-sql/` | SQL backend (PostgreSQL), on JDBI SqlObjects and Flyway. | Published |
 | `config-datastore-testkit/` | Contract tests every backend must pass. | Published |
-| `config-datastore-dynamodb/` | DynamoDB backend. | Placeholder |
+| `config-datastore-dynamodb/` | Amazon DynamoDB backend (also works with DynamoDB Local). | Published |
 | `config-datastore-etcd/` | etcd backend. | Placeholder |
 | `config-library/` | In-process Java library that reads a datastore directly. | Published |
-| `config-client/` | Java client for the config service HTTP API: the HTTP layer is generated from the spec at build time. Also generates the Rust `config-api` crate. | Not published |
+| `config-client/` | Java client for the config service: `ClientConfigurationFactory`, over an HTTP layer generated from the spec at build time. Also generates the Rust `config-api` crate. | Published |
 | `config-server/` | The config service: a Dropwizard application wired with Dagger. | Not published |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores. | Not published |
@@ -80,5 +80,25 @@ dependencies {
 }
 ```
 
-`config-client`, the entry point for applications that call the config service, is not published
-yet.
+Applications that read through the config service use `config-client` instead:
+
+```kotlin
+dependencies {
+    implementation(platform("com.codeheadsystems:config-bom:<version>"))
+    implementation("com.codeheadsystems:config-client")
+}
+```
+
+```java
+try (ClientConfigurationFactory factory = ClientConfigurationFactory.builder()
+    .with(Application.from("billing"))
+    .with(Environment.from("prod"))
+    .baseUri(URI.create("https://config.example.com"))
+    .tokenFile(Path.of("/var/run/secrets/tokens/config-token"))
+    .build()) {
+  Configuration configuration = factory.configuration();
+}
+```
+
+Rust applications use the `config-client` crate in `rust/` (`ConfigClient`), which follows the
+same rules.

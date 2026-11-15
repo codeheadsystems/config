@@ -3,8 +3,7 @@ import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 plugins {
     id("buildlogic.java-library-conventions")
     alias(libs.plugins.openapi.generator)
-    // Not published yet: add buildlogic.publish-conventions (and a constraint in config-bom) once
-    // the hand-written layer over the generated client exists.
+    id("buildlogic.publish-conventions")
 }
 
 description = "Java client for the config service HTTP API"
@@ -99,25 +98,29 @@ val patchRustTemplates by tasks.registering {
     inputs.property("generatorVersion", generatorVersion)
     outputs.dir(out)
     doLast {
-        fun builtin(name: String): String =
-            GenerateTask::class.java.classLoader.getResource("rust/reqwest/$name")?.readText()
-                ?: throw GradleException("openapi-generator $generatorVersion has no rust/reqwest/$name template")
+        // path is under the generator's rust/ templates, such as "reqwest/api.mustache".
+        fun builtin(path: String): String =
+            GenerateTask::class.java.classLoader.getResource("rust/$path")?.readText()
+                ?: throw GradleException("openapi-generator $generatorVersion has no rust/$path template")
         fun String.patch(name: String, old: String, new: String, times: Int): String {
             val found = split(old).size - 1
             if (found != times) {
                 throw GradleException("openapi-generator $generatorVersion: expected '$old' $times time(s) in " +
-                    "rust/reqwest/$name, found $found. Update patchRustTemplates for this generator version.")
+                    "rust/$name, found $found. Update patchRustTemplates for this generator version.")
             }
             return replace(old, new)
         }
+        // Generated code is never edited, so it is not linted: CI runs clippy with -D warnings.
+        File(out.get().asFile.apply { mkdirs() }, "lib.mustache").writeText(builtin("lib.mustache")
+            .patch("lib.mustache", "#![allow(clippy::too_many_arguments)]\n", "#![allow(clippy::all)]\n", 1))
         val dir = out.get().dir("reqwest").asFile.apply { mkdirs() }
-        File(dir, "api_mod.mustache").writeText(builtin("api_mod.mustache").patch("api_mod.mustache",
+        File(dir, "api_mod.mustache").writeText(builtin("reqwest/api_mod.mustache").patch("reqwest/api_mod.mustache",
             "    pub status: reqwest::StatusCode,\n",
             "    pub status: reqwest::StatusCode,\n    pub headers: reqwest::header::HeaderMap,\n", 1))
-        File(dir, "api.mustache").writeText(builtin("api.mustache")
-            .patch("api.mustache", "    let status = resp.status();\n",
+        File(dir, "api.mustache").writeText(builtin("reqwest/api.mustache")
+            .patch("reqwest/api.mustache", "    let status = resp.status();\n",
                 "    let status = resp.status();\n    let headers = resp.headers().clone();\n", 1)
-            .patch("api.mustache", "ResponseContent { status, content, entity }",
+            .patch("reqwest/api.mustache", "ResponseContent { status, content, entity }",
                 "ResponseContent { status, headers, content, entity }", 2))
     }
 }
@@ -153,15 +156,16 @@ val rustCheckDir = layout.buildDirectory.dir("rust-client-check")
 
 val generateRustClientForCheck by tasks.registering(GenerateTask::class) {
     rustClient(rustCheckDir)
-    // Start empty, with the crate's .openapi-generator-ignore, which the generator only reads from
-    // its output directory: the same inputs that produced the committed crate.
-    val ignoreFile = rustCrate.file(".openapi-generator-ignore")
-    inputs.file(ignoreFile)
+    mustRunAfter(generateRustClient) // both read rust/config-api; check what was just generated
+    // Start empty, with the crate's hand-written files: .openapi-generator-ignore, which the
+    // generator only reads from its output directory, and rustfmt.toml, which it never writes.
+    val handWritten = listOf(".openapi-generator-ignore", "rustfmt.toml").map { rustCrate.file(it) }
+    inputs.files(handWritten)
     doFirst {
         val dir = rustCheckDir.get().asFile
         delete(dir)
         dir.mkdirs()
-        ignoreFile.asFile.copyTo(File(dir, ".openapi-generator-ignore"))
+        handWritten.forEach { it.asFile.copyTo(File(dir, it.asFile.name)) }
     }
 }
 
@@ -169,13 +173,14 @@ val checkRustClient by tasks.registering {
     group = "verification"
     description = "Fails if rust/config-api is not what openapi/config-api.yaml generates."
     dependsOn(generateRustClientForCheck)
+    mustRunAfter(generateRustClient)
     val expected = rustCheckDir
     val actual = rustCrate
     inputs.dir(expected)
     inputs.dir(actual)
     doLast {
         fun files(root: File) = root.walkTopDown()
-            .filter { it.isFile && !it.path.contains("/target/") && it.name != ".openapi-generator-ignore" }
+            .filter { it.isFile && !it.path.contains("/target/") }
             .associate { it.relativeTo(root).path to it.readText() }
         val want = files(expected.get().asFile)
         val have = files(actual.asFile)

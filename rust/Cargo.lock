@@ -126,6 +126,8 @@ version = "0.1.0"
 dependencies = [
  "config-api",
  "config-model",
+ "fastrand",
+ "log",
  "reqwest",
  "serde_json",
  "tokio",

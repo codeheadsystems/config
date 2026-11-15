@@ -262,11 +262,34 @@ cannot drift from the spec. Generation also validates the spec.
   callers use `status`, not the variant. The token goes in `Configuration.bearer_access_token`.
 - The schema `Error` is generated as `ErrorMessage` in both, so it does not shadow `Error` types.
 
-The generated code is only the HTTP layer. The client behaviour the spec describes (wait
-`max-age` with jitter, check the version, keep values on errors, honor `Retry-After`) belongs in a
-hand-written `ConfigurationFactory` on top of it, still to be written.
-`GeneratedClientContractTest` (in `config-server`) runs the generated Java client against the real
-server; `rust/config-client/tests` run the generated Rust client against spec-shaped responses.
+The generated code is only the HTTP layer. Applications use a hand-written layer on top, which
+implements the client rules in the spec, the same way in both languages:
+`ClientConfigurationFactory` (Java, a `ConfigurationFactory`) and `ConfigClient` (Rust).
+
+- **Lookups are local**: they read the last settings received, never the network. Optional
+  defaults answer keys the settings lack, and every key until settings first arrive.
+- **One conditional `GET` per check**, with `If-None-Match` once settings are held: `304` costs no
+  body, and a change arrives in the same round trip. A background thread (Java) or task (Rust,
+  `spawn_refresh`) checks again after `max-age` (at least a second) plus up to 10% jitter, or
+  after `Retry-After` on `429` and `503` when that is longer.
+- **Versions only move forward**: an older version, from a server whose cache lags, is ignored.
+- **Errors never drop values**: `401`, `403`, `404`, server and network errors keep the current
+  settings; the problem is logged when it starts and exposed (`problem()`) for health checks, and
+  checking continues. Settings are reported `stale()` once no check has succeeded for `max-age`
+  plus `stale-if-error`.
+- **Tokens are read per request**, from a supplier or a file (Kubernetes rotates projected tokens
+  in place). On `401` the request is retried once at once if the token has changed.
+- `requireSettingsAtStartup` (Java) / `require_settings_at_startup` (Rust) fails startup without
+  settings; by default the client starts on its defaults and keeps trying.
+
+Tests: `GeneratedClientContractTest` and `ClientConfigurationFactoryEndToEndTest` (in
+`config-server`) run the generated Java client and the factory against the real server;
+`ClientConfigurationFactoryTest` and the Rust `client` tests cover every rule against a scripted
+service; `rust/config-client/tests` check the generated Rust client against spec-shaped responses.
+
+The generated Rust crate is exempt from `rustfmt` (its own `rustfmt.toml`) and from clippy (an
+`allow` added by the template patch), since it is never edited; CI runs both with warnings as
+errors.
 
 ## config-server
 
@@ -379,8 +402,6 @@ artifacts run on Java 21 and later.
 - The export format.
 - Sender-constrained tokens, if bearer tokens prove not to be enough: DPoP (RFC 9449) or
   certificate-bound tokens (RFC 8705), chosen per trusted issuer.
-- The hand-written client layer (`ConfigurationFactory` over the generated HTTP clients), in Java
-  and Rust.
 - Storage layout for the remaining backends (S3 uses one object per set with a deleted-set marker;
   the same approach likely suits DynamoDB and etcd), and how environments inherit or override
   values.

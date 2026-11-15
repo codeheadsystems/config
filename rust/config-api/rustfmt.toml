@@ -1,0 +1,4 @@
+# config-api is generated from openapi/config-api.yaml (./gradlew :config-client:generateRustClient):
+# it is never edited, so it is not formatted either. checkRustClient keeps it identical to the
+# generator's output.
+disable_all_formatting = true

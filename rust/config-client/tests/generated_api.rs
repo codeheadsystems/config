@@ -3,9 +3,9 @@
 //! relies on: status and headers on every response (the version is in headers), `304` without a
 //! body, and the `Error` body on errors.
 
+use config_client::api::apis::Error;
 use config_client::api::apis::configuration::Configuration;
 use config_client::api::apis::settings_api::{self, GetSettingsSuccess, GetSettingsVersionSuccess};
-use config_client::api::apis::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
@@ -36,7 +36,10 @@ fn response(status: &str, headers: &[(&str, &str)], body: &str) -> String {
         text.push_str(&format!("{name}: {value}\r\n"));
     }
     if !body.is_empty() {
-        text.push_str(&format!("Content-Type: application/json\r\nContent-Length: {}\r\n", body.len()));
+        text.push_str(&format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n",
+            body.len()
+        ));
     }
     text.push_str("\r\n");
     text.push_str(body);
@@ -44,7 +47,11 @@ fn response(status: &str, headers: &[(&str, &str)], body: &str) -> String {
 }
 
 fn header(headers: &reqwest::header::HeaderMap, name: &str) -> String {
-    headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string()
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string()
 }
 
 #[tokio::test]
@@ -52,12 +59,18 @@ async fn get_settings_returns_the_set_with_its_version_headers() {
     let body = r#"{"application":"billing","environment":"prod","version":42,"values":{"database.url":"jdbc:postgresql://db:5432/billing","database.pool.size":"10"}}"#;
     let (configuration, request) = serve_once(response(
         "200 OK",
-        &[("ETag", "\"42\""), ("Config-Version", "42"), ("Cache-Control", CACHE_CONTROL)],
+        &[
+            ("ETag", "\"42\""),
+            ("Config-Version", "42"),
+            ("Cache-Control", CACHE_CONTROL),
+        ],
         body,
     ))
     .await;
 
-    let result = settings_api::get_settings(&configuration, "billing", "prod", None).await.unwrap();
+    let result = settings_api::get_settings(&configuration, "billing", "prod", None)
+        .await
+        .unwrap();
 
     assert_eq!(result.status, 200);
     assert_eq!(header(&result.headers, "config-version"), "42");
@@ -66,30 +79,48 @@ async fn get_settings_returns_the_set_with_its_version_headers() {
     match result.entity {
         Some(GetSettingsSuccess::Status200(settings)) => {
             assert_eq!(settings.version, 42);
-            assert_eq!(settings.values["database.url"], "jdbc:postgresql://db:5432/billing");
+            assert_eq!(
+                settings.values["database.url"],
+                "jdbc:postgresql://db:5432/billing"
+            );
             assert_eq!(settings.values["database.pool.size"], "10");
         }
         other => panic!("expected the settings, got {other:?}"),
     }
     let request = request.await.unwrap();
-    assert!(request.starts_with("get /v1/applications/billing/environments/prod/settings "), "{request}");
-    assert!(request.contains("authorization: bearer test-token"), "{request}");
+    assert!(
+        request.starts_with("get /v1/applications/billing/environments/prod/settings "),
+        "{request}"
+    );
+    assert!(
+        request.contains("authorization: bearer test-token"),
+        "{request}"
+    );
 }
 
 #[tokio::test]
 async fn get_settings_with_the_current_version_is_304_without_a_body() {
     let (configuration, request) = serve_once(response(
         "304 Not Modified",
-        &[("ETag", "\"42\""), ("Config-Version", "42"), ("Cache-Control", CACHE_CONTROL)],
+        &[
+            ("ETag", "\"42\""),
+            ("Config-Version", "42"),
+            ("Cache-Control", CACHE_CONTROL),
+        ],
         "",
     ))
     .await;
 
-    let result = settings_api::get_settings(&configuration, "billing", "prod", Some("\"42\"")).await.unwrap();
+    let result = settings_api::get_settings(&configuration, "billing", "prod", Some("\"42\""))
+        .await
+        .unwrap();
 
     assert_eq!(result.status, 304);
     assert_eq!(header(&result.headers, "config-version"), "42");
-    assert!(!matches!(result.entity, Some(GetSettingsSuccess::Status200(_))));
+    assert!(!matches!(
+        result.entity,
+        Some(GetSettingsSuccess::Status200(_))
+    ));
     assert!(request.await.unwrap().contains("if-none-match: \"42\""));
 }
 
@@ -97,17 +128,32 @@ async fn get_settings_with_the_current_version_is_304_without_a_body() {
 async fn head_returns_the_version_in_headers() {
     let (configuration, request) = serve_once(response(
         "200 OK",
-        &[("ETag", "\"43\""), ("Config-Version", "43"), ("Cache-Control", CACHE_CONTROL)],
+        &[
+            ("ETag", "\"43\""),
+            ("Config-Version", "43"),
+            ("Cache-Control", CACHE_CONTROL),
+        ],
         "",
     ))
     .await;
 
-    let result = settings_api::get_settings_version(&configuration, "billing", "prod", Some("\"42\"")).await.unwrap();
+    let result =
+        settings_api::get_settings_version(&configuration, "billing", "prod", Some("\"42\""))
+            .await
+            .unwrap();
 
     assert_eq!(result.status, 200);
     assert_eq!(header(&result.headers, "config-version"), "43");
-    assert!(matches!(result.entity, None | Some(GetSettingsVersionSuccess::Status200())));
-    assert!(request.await.unwrap().starts_with("head /v1/applications/billing/environments/prod/settings "));
+    assert!(matches!(
+        result.entity,
+        None | Some(GetSettingsVersionSuccess::Status200())
+    ));
+    assert!(
+        request
+            .await
+            .unwrap()
+            .starts_with("head /v1/applications/billing/environments/prod/settings ")
+    );
 }
 
 #[tokio::test]
@@ -119,16 +165,25 @@ async fn errors_carry_status_headers_and_the_error_message() {
     ))
     .await;
 
-    let error = settings_api::get_settings(&configuration, "billing", "prod", None).await.unwrap_err();
+    let error = settings_api::get_settings(&configuration, "billing", "prod", None)
+        .await
+        .unwrap_err();
 
-    let Error::ResponseError(content) = error else { panic!("expected a response error, got {error:?}") };
+    let Error::ResponseError(content) = error else {
+        panic!("expected a response error, got {error:?}")
+    };
     assert_eq!(content.status, 503);
     assert_eq!(header(&content.headers, "retry-after"), "30");
     // The error enum is untagged and every variant holds the same model, so serde picks the first
     // variant whatever the status: callers go by `status`, never by the variant name.
     let message = match content.entity {
-        Some(settings_api::GetSettingsError::UnknownValue(value)) => value["message"].as_str().unwrap().to_string(),
-        Some(other) => serde_json::to_value(other).unwrap()["message"].as_str().unwrap().to_string(),
+        Some(settings_api::GetSettingsError::UnknownValue(value)) => {
+            value["message"].as_str().unwrap().to_string()
+        }
+        Some(other) => serde_json::to_value(other).unwrap()["message"]
+            .as_str()
+            .unwrap()
+            .to_string(),
         None => panic!("the error body was not parsed: {}", content.content),
     };
     assert_eq!(message, "The datastore cannot be reached");

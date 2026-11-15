@@ -11,8 +11,11 @@ rust-version.workspace = true
 [dependencies]
 config-model.workspace = true
 config-api.workspace = true
+fastrand = "2.5"
+log = "0.4"
+reqwest = { version = "0.13", default-features = false }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "sync", "time"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util"] }
-reqwest = { version = "0.13", default-features = false }
-serde_json = "1"
