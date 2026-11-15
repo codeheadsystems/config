@@ -21,7 +21,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-datastore-etcd/` | etcd backend. | Placeholder |
 | `config-library/` | In-process Java library that reads a datastore directly. | Published |
 | `config-client/` | Java client for the config service HTTP API. | Placeholder |
-| `config-server/` | The config service. | Placeholder |
+| `config-server/` | The config service: a Dropwizard application wired with Dagger. | Not published |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores. | Not published |
 | `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens for the config service's tests. | Not published |
@@ -44,6 +44,12 @@ Rust:
 
 ```sh
 cd rust && cargo test
+```
+
+Run the config service locally (in-memory datastore; see `config-server/config.yml`):
+
+```sh
+./gradlew :config-server:run --args="server config-server/config.yml"
 ```
 
 Local datastores for manual testing:

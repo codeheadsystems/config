@@ -19,6 +19,16 @@ info:
     change, so a client that remembers it can tell when the settings have changed. Clients check
     the version with `HEAD` (or a conditional `GET`) and fetch the values only when it differs.
 
+    A server caches versions briefly (about a second), and a deployment can run several servers,
+    so a version check can report a version older than one the client already has. A client
+    only ever moves forward: it adopts a version higher than the one it holds and ignores a lower
+    one.
+
+    Only `GET` and `HEAD` exist; any other method is `405 Method Not Allowed` with an `Allow`
+    header. Responses are JSON; an `Accept` header that excludes `application/json` is
+    `406 Not Acceptable`. Every error, including a path the server cannot parse (`400`), has the
+    `Error` body.
+
     Authentication and access:
 
     - Every request carries `Authorization: Bearer <JWT>` (see the `bearerAuth` security scheme).
@@ -33,6 +43,10 @@ info:
       used to discover which applications and environments exist.
     - Tokens should be short-lived (minutes to an hour). Clients get a new token before the old
       one expires; the issuer, not this API, defines how.
+    - Each token may make a limited number of requests (a burst, then a steady rate; by default
+      20, then 60 a minute). Over the limit is `429` with `Retry-After`. The limit is per token,
+      not per identity, so many instances of one service, each with its own token, are not
+      limited together.
 
     How often to check:
 
@@ -42,9 +56,12 @@ info:
       (30 seconds by default), so it can slow clients down without changing them.
     - A client uses its values for `max-age` seconds without asking again, then checks the
       version. A `304 Not Modified` starts a new `max-age` period.
-    - `stale-while-revalidate` (the same as `max-age`): once `max-age` has passed, a client keeps
-      using its values while it checks the version in the background. Lookups never wait on the
-      network.
+    - Lookups read the client's in-memory values; they never wait on the network. Checking the
+      version happens in the background.
+    - `stale-while-revalidate` (the same as `max-age`): once `max-age` has passed, the client's
+      values are stale. For up to this long it keeps serving them while the check runs. If no
+      check has succeeded by then, the values are treated as failing to revalidate: the
+      `stale-if-error` rules below apply.
     - `stale-if-error` (1 day by default): while the service answers `500`, `502`, `503` or `504`,
       or cannot be reached, a client keeps using its values for this long without treating it as
       a problem. Past it, a client still keeps its values (dropping a running service's
@@ -54,6 +71,14 @@ info:
       together do not poll together.
     - After `429 Too Many Requests` or `503 Service Unavailable`, a client waits at least
       `Retry-After` seconds before its next request, and keeps using the values it has.
+    - A client that already has values keeps them on every error, and reports the problem (logs,
+      a health check) rather than dropping configuration a running service depends on:
+      - `401`: its token expired or was refused. It gets a new token and checks again.
+      - `403`: its access was revoked. It keeps checking every `max-age`, so access granted again
+        is picked up.
+      - `404`: the settings were deleted. It keeps checking every `max-age`.
+      A client with no values yet has nothing to keep: it fails or waits, as its application
+      decides.
     - `private` means shared caches (proxies, CDNs) must not store responses: settings can hold
       secrets.
   license:
@@ -144,6 +169,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "406":
+          $ref: "#/components/responses/NotAcceptable"
         "429":
           $ref: "#/components/responses/TooManyRequests"
         "500":
@@ -154,8 +181,9 @@ paths:
       operationId: getSettingsVersion
       summary: Get the version of the settings, without the keys and values.
       description: |
-        The same response as `GET` without a body: the version is in the `Config-Version` and
-        `ETag` headers. Use it to poll for changes cheaply.
+        The same status and version headers as `GET`, without a body: the version is in the
+        `Config-Version` and `ETag` headers. Use it to poll for changes cheaply. It is answered from
+        the version alone, so it has no `Content-Length` (RFC 9110, section 8.6).
 
         Without a version, to learn the current one:
 
@@ -220,23 +248,27 @@ paths:
         "403":
           description: |
             The token is valid, but its subject may not read this application's settings in this
-            environment.
-          headers:
-            WWW-Authenticate:
-              $ref: "#/components/headers/WWWAuthenticate"
+            environment. No `WWW-Authenticate`: access is granted by the server, so a new token
+            would not help.
         "404":
           description: |
             There are no settings for this application in this environment. Only answered to a
             client with access.
+        "406":
+          description: The `Accept` header excludes `application/json`.
         "429":
-          description: Too many requests. Wait for `Retry-After` seconds before trying again.
+          description: |
+            The token's request limit is used up. Wait for `Retry-After` seconds before trying
+            again.
           headers:
             Retry-After:
               $ref: "#/components/headers/RetryAfter"
         "500":
           description: The service failed unexpectedly.
         "503":
-          description: The datastore cannot be reached. Try again after `Retry-After` seconds.
+          description: |
+            The datastore or the token's issuer cannot be reached, or the token names a signing key
+            the server cannot fetch yet. Try again after `Retry-After` seconds.
           headers:
             Retry-After:
               $ref: "#/components/headers/RetryAfter"
@@ -252,6 +284,10 @@ paths:
         Returns one key's value. The `ETag` and `Config-Version` headers carry the version of the
         whole set the value was read from. Clients that read more than one key should get the
         whole set instead.
+
+        Conditional requests are not supported here: `If-None-Match` is ignored, and the answer is
+        always the value. `HEAD` is accepted and returns the same status and headers without the
+        body.
       responses:
         "200":
           description: The value.
@@ -277,6 +313,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "406":
+          $ref: "#/components/responses/NotAcceptable"
         "429":
           $ref: "#/components/responses/TooManyRequests"
         "500":
@@ -293,8 +331,9 @@ components:
         A JWT access token (RFC 7519) from an OpenID Connect issuer the server trusts, sent as
         `Authorization: Bearer <token>` (RFC 6750). The server rejects the token with `401` unless:
 
-        - it is a JWS signed with an asymmetric algorithm (such as `RS256` or `ES256`); `none` and
-          HMAC algorithms are refused (RFC 8725);
+        - it is a signed JWT (a JWS, not an encrypted JWE), signed with one of `RS256`, `RS384`,
+          `RS512`, `PS256`, `PS384`, `PS512`, `ES256`, `ES384` or `ES512`; `none` and HMAC
+          algorithms are refused (RFC 8725);
         - `iss` is exactly one of the issuers the server is configured with;
         - the signature verifies with a key from that issuer's JWKS (RFC 7517), found through
           OpenID Connect Discovery (`<iss>/.well-known/openid-configuration`, then `jwks_uri`)
@@ -303,14 +342,20 @@ components:
           issued for another service is refused;
         - `exp` is present and in the future, and `nbf`, if present, is in the past (allowing a
           small clock skew);
-        - `sub` is present.
+        - `sub` is present and not blank.
 
         Access tokens in the RFC 9068 format are accepted, but not required, so tokens from
         workload identity issuers (such as Kubernetes service account tokens) work too.
 
+        Trusted issuers are `https` URLs, and so are their `jwks_uri`s. If the issuer's keys
+        cannot be fetched, the answer is `503`, not `401`: the token may be fine. A token naming a
+        key the server has not seen is checked against freshly fetched keys, at most twice per
+        refresh window; beyond that it is `503` with `Retry-After`, since during a key rotation
+        the same token works once the window passes.
+
         The token then gives access only if its `iss` and `sub` are on the list of subjects
         allowed to read the requested application in the requested environment; otherwise the
-        answer is `403`.
+        answer is `403`. Each token is then rate limited (`429`).
   parameters:
     Application:
       name: application
@@ -340,7 +385,11 @@ components:
       name: If-None-Match
       in: header
       required: false
-      description: The `ETag` of a version the client already has.
+      description: |
+        The `ETag` of a version the client already has. Also accepted: a comma-separated list of
+        tags (a match on any one is enough), weak tags (`W/"42"` matches version 42; RFC 9110
+        uses weak comparison for `If-None-Match`), and `*` (matches any version). A malformed
+        value matches nothing, so the full response is sent.
       schema:
         type: string
       example: '"42"'
@@ -367,6 +416,9 @@ components:
         - `stale-if-error`: while the service is failing or unreachable. Set per application and
           environment on the server; 86400 (1 day) by default.
 
+        Each value is at most 2147483647 (2^31 - 1, RFC 9111 section 1.2.2), so it fits a signed
+        32-bit integer.
+
         `private` keeps shared caches (proxies, CDNs) from storing settings, which can hold
         secrets.
       schema:
@@ -375,9 +427,9 @@ components:
       example: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
     WWWAuthenticate:
       description: |
-        The bearer challenge (RFC 6750, section 3). Without a token: `Bearer`. With a token that
-        is not valid: `Bearer error="invalid_token"`. With a valid token that lacks access:
-        `Bearer error="insufficient_scope"`.
+        The bearer challenge on `401` (RFC 6750, section 3). Without a token: `Bearer`. With a
+        token that is not valid: `Bearer error="invalid_token"`, with an `error_description`.
+        Not sent with `403`.
       schema:
         type: string
       example: Bearer error="invalid_token", error_description="The access token expired"
@@ -397,7 +449,9 @@ components:
       type: string
       pattern: '^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$'
     Version:
-      description: A set's version. It only ever increases.
+      description: |
+        A set's version. It only ever increases, but a server may briefly report an older one;
+        see the API description.
       type: integer
       format: int64
       minimum: 1
@@ -444,7 +498,9 @@ components:
         Cache-Control:
           $ref: "#/components/headers/CacheControl"
     BadRequest:
-      description: The application, environment or key is not a valid name.
+      description: |
+        The application, environment or key is not a valid name, or the path cannot be parsed
+        (such as an encoded `/`).
       content:
         application/json:
           schema:
@@ -466,10 +522,8 @@ components:
     Forbidden:
       description: |
         The token is valid, but its subject may not read this application's settings in this
-        environment. Answered whether or not the settings exist.
-      headers:
-        WWW-Authenticate:
-          $ref: "#/components/headers/WWWAuthenticate"
+        environment. Answered whether or not the settings exist. No `WWW-Authenticate`: access is
+        granted by the server, so a new token would not help.
       content:
         application/json:
           schema:
@@ -486,10 +540,18 @@ components:
             $ref: "#/components/schemas/Error"
           example:
             message: "No settings for application billing in environment prod"
+    NotAcceptable:
+      description: The `Accept` header excludes `application/json`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Not Acceptable"
     TooManyRequests:
       description: |
-        Too many requests. Wait at least `Retry-After` seconds before the next request, and keep
-        using the values already held.
+        The token's request limit is used up. Wait at least `Retry-After` seconds before the next
+        request, and keep using the values already held.
       headers:
         Retry-After:
           $ref: "#/components/headers/RetryAfter"
@@ -508,7 +570,10 @@ components:
           example:
             message: "Internal error"
     Unavailable:
-      description: The datastore cannot be reached. Try again after `Retry-After` seconds.
+      description: |
+        The datastore, or the issuer of the client's token (to fetch its signing keys), cannot be
+        reached; or the token names a signing key the server cannot fetch yet (during a key
+        rotation). Try again after `Retry-After` seconds, with the same token.
       headers:
         Retry-After:
           $ref: "#/components/headers/RetryAfter"

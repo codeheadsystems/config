@@ -60,9 +60,10 @@ application's own values). It tells clients how long to use their values:
   unchanged set answers `304 Not Modified`, which starts a new `max-age` period). Raising it slows
   every client of that application down without changing them; the cost is that a change can
   take up to `max-age` to reach them.
-- **`stale-while-revalidate`** (RFC 5861): after `max-age`, while the version check runs in the
-  background. Always equal to `max-age`. Lookups read in-memory values, so they never wait on
-  the network.
+- **`stale-while-revalidate`** (RFC 5861): after `max-age`, the values are stale; for up to this
+  long the client keeps serving them while the version check runs in the background. Always
+  equal to `max-age`. If no check has succeeded by then, the `stale-if-error` rules apply.
+  Lookups always read in-memory values, so they never wait on the network.
 - **`stale-if-error`** (RFC 5861): while the service fails (`500`, `502`, `503`, `504`) or cannot be
   reached. Past it, clients still keep their values, as `config-library` does after a failed
   refresh, but report them as stale (logs, health checks).
@@ -73,8 +74,14 @@ The server reads these from the application's `METADATA` set in that environment
 `cache.max-age` (default 30) and `cache.stale-if-error` (default 86400, one day).
 
 Clients add up to 10% random jitter to each wait and honor `Retry-After` on `429` and `503`,
-keeping the values they have. `config-server` keeps each set's version in memory for a second or
-two, so a burst of version checks costs one datastore query.
+keeping the values they have. A client that has values keeps them on every error and reports
+it: on `401` it gets a new token, on `403` (access revoked) and `404` (settings deleted) it keeps
+checking every `max-age`.
+
+`config-server` keeps each set's version in memory for a second, so a burst of version checks
+costs one datastore query. A version can therefore lag, and several servers can disagree, so a
+client only ever moves to a higher version and ignores a lower one. A single server never goes
+backward: a fresh `GET` moves its cached version forward.
 
 ### Client authentication and access
 
@@ -86,19 +93,28 @@ configuration. `config-server` never issues tokens.
 Each has:
 
 - a **name**, a valid key segment such as `k8s-prod`, used in METADATA below;
-- the **issuer URL**, which must equal the token's `iss` exactly;
+- the **issuer URL**, which must equal the token's `iss` exactly. It must be `https` (plain `http`
+  only on loopback, for development and tests), checked at startup, because whoever serves the
+  issuer's keys can mint tokens;
 - the **audience**, which the token's `aud` must contain. It identifies the config service, so a
   token issued for another service is refused.
 
 The issuer's signing keys come from OpenID Connect Discovery (`<issuer>/.well-known/openid-configuration`,
-then its `jwks_uri`), cached and refetched when a token names an unknown `kid`, so key rotation
-needs no restart. Any compliant issuer works: an OAuth server using the client credentials grant,
-Kubernetes service account tokens, SPIFFE JWT-SVIDs.
+then its `jwks_uri`, which must also be `https`). They are cached for `auth.keyCacheTtl` (5
+minutes) and refetched when a token names an unknown `kid`, so key rotation needs no restart.
+Refetches for unknown `kid`s are limited to two per `auth.keyRefreshInterval` (30 seconds), so
+made-up key IDs cannot make the server hammer the issuer; a token over that limit gets `503`
+with `Retry-After`, because during a real rotation the same token works once the window passes.
+While an issuer cannot be reached, the server keeps using the keys it has for
+`auth.keyOutageTolerance` (1 day, matching the default `stale-if-error`); an unreachable issuer
+with no usable keys is `503`. Any compliant issuer works: an OAuth server using the client
+credentials grant, Kubernetes service account tokens, SPIFFE JWT-SVIDs.
 
 **Checking a token** (any failure is `401`, with `WWW-Authenticate: Bearer error="invalid_token"`):
-asymmetric signature only (no `none` or HMAC), `iss` is a trusted issuer, the signature verifies
-with that issuer's key, `aud` contains the issuer's audience, `exp` is in the future and `nbf`
-(if present) in the past, with up to 60 seconds of clock skew, and `sub` is present.
+a signed JWT (not unsigned, not encrypted) with an asymmetric algorithm (RS, PS or ES at 256, 384
+or 512; no `none` or HMAC), `iss` is a trusted issuer, the signature verifies with that issuer's
+key, `aud` contains the issuer's audience, `exp` is in the future and `nbf` (if present) in the
+past, with up to 60 seconds of clock skew, and `sub` is present and not blank.
 
 **Access.** A valid token reads an application's settings in an environment only if its subject
 is listed in that application's `METADATA` set for that environment:
@@ -108,7 +124,9 @@ auth.<issuer name>.subjects = <subject> <subject> ...
 ```
 
 For example, `auth.k8s-prod.subjects = system:serviceaccount:billing:billing`. Subjects are
-separated by whitespace. No list, or a subject not on it, means no access (`403`). Because only
+separated by whitespace. No list, an empty list, or a subject not on it means no access (`403`,
+with no `WWW-Authenticate`: RFC 6750's `insufficient_scope` would send OAuth clients after more
+scope, which cannot help when the server grants access). Because only
 the library writes METADATA, access is granted and revoked the same way every other change is
 made, and takes effect within the server's METADATA cache time.
 
@@ -119,6 +137,12 @@ to find out which applications and environments exist.
 **Tokens should be short-lived** (minutes to an hour), renewed by the client or its platform. A
 bearer token works for whoever holds it, so its lifetime is how long a leaked one stays useful.
 Bearer tokens are only sent over TLS (RFC 6750); plain HTTP is for local development.
+
+**Rate limit.** Each verified token has a token bucket (`rateLimit`: bursts of 20, then 60 requests
+a minute); over it is `429` with `Retry-After`. Limits are per token rather than per identity
+because many instances of one service usually share an identity (one Kubernetes service account
+for every pod) but each has its own token. Buckets are keyed by a hash of the token, never the
+token itself.
 
 **Testing.** `config-test-oidc` is an in-process OpenID Connect issuer for tests: it serves the
 discovery document and JWKS and signs tokens with any claims, including invalid ones (expired,
@@ -215,6 +239,44 @@ Exporting is a capability of `config-datastore` itself, not of any one backend: 
 data can be exported, so any store can produce a snapshot that seeds another. (Not built yet; the
 SPI's listings, `applications()`, `environments()` and `types()`, give it what it needs.)
 
+## config-server
+
+A [Dropwizard](https://www.dropwizard.io) application, wired with [Dagger](https://dagger.dev)
+(no Spring). Dropwizard owns the lifecycle, the HTTP server (Jetty, Jersey), configuration,
+logging, metrics and health checks; Dagger builds the objects it registers, using the same
+JSR-330 annotations as the rest of the project.
+
+- **Read-only.** The server is given a `ConfigReader`, never a `ConfigWriter`; there is no write
+  endpoint, so `PUT`, `POST`, `PATCH` and `DELETE` are `405`.
+- **Configuration** (`config-server/config.yml` is an annotated example): `datastore` (a backend
+  name and options, opened through `ConfigDatastores`), `auth` (trusted issuers, clock skew,
+  issuer timeout, JWKS refresh limit) and `cache` (server-side TTLs and `Cache-Control`
+  defaults).
+- **Requests** go through `BearerTokenFilter` (token, `401`), then `SettingsResource` (names `400`,
+  access `403`, existence `404`). Every error, including Jersey's own, uses the API's
+  `{"message": ...}` body.
+- **Server-side caches** (Caffeine): versions for `cache.versionTtl` (1 second) and METADATA for
+  `cache.metadataTtl` (10 seconds). Settings values are always read fresh.
+- **Token keys** (Nimbus JOSE+JWT): discovered per issuer on the first token or health check,
+  cached, refetched on unknown `kid`s within limits, and kept through issuer outages; see
+  "Client authentication and access". The key sources' background threads stop at shutdown.
+- **Rate limit**: per token (`rateLimit`), after the token is verified, so forged tokens never
+  get buckets.
+- **Validation at startup**: settings that would turn a protection off are refused, such as an
+  `http` issuer off loopback, a zero issuer timeout or key refresh interval, a refresh interval
+  not shorter than the key cache, or cache seconds beyond 2^31 - 1 (clients read them as 32-bit
+  integers).
+- **Errors**: Jersey's are mapped to the `{"message": ...}` body; Jetty's own (such as `400` for
+  an encoded `/` in the path) go through a JSON error handler; a client that disconnects is
+  logged at debug, not as an error.
+- **`HEAD .../settings`** answers from the version alone, so a servlet filter keeps
+  `Content-Length` off it (RFC 9110 forbids a length other than `GET`'s).
+- **Operations**: the admin port serves health checks (the datastore's `validate(Access.READ)`,
+  and one per issuer: discovery and keys) and metrics, including datastore call timings and
+  failures (`SettingsService.*`); keep it private.
+
+Run it locally with `./gradlew :config-server:run --args="server config-server/config.yml"`.
+
 ## Layering in config-library
 
 `LibraryConfigurationFactory` reads the application's `SETTINGS` set from a stack of datastores:
@@ -264,7 +326,7 @@ The HTTP API (`openapi/config-api.yaml`, OpenAPI 3.1) relies on these RFCs:
 | [RFC 6585](https://www.rfc-editor.org/rfc/rfc6585) | Additional HTTP Status Codes | `429 Too Many Requests` |
 | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | The JSON Data Interchange Format | Response bodies |
 | [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986) | URI Generic Syntax | Application, environment and key names fit in one path segment without escaping |
-| [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) | OAuth 2.0 Bearer Token Usage | `Authorization: Bearer`, the `WWW-Authenticate` challenge, `invalid_token` and `insufficient_scope`, TLS required |
+| [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) | OAuth 2.0 Bearer Token Usage | `Authorization: Bearer`, the `WWW-Authenticate` challenge and `invalid_token` on `401`, TLS required |
 | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) | JSON Web Token (JWT) | The token and its `iss`, `sub`, `aud`, `exp` and `nbf` claims |
 | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS) | How the token is signed |
 | [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517) | JSON Web Key (JWK) | The issuer's public keys (JWKS), matched by `kid` |
@@ -285,7 +347,6 @@ artifacts run on Java 21 and later.
 - Push or watch refresh for `config-library`, for backends that support it (etcd watches), in
   place of polling.
 - The export format.
-- HTTP framework for `config-server`.
 - Sender-constrained tokens, if bearer tokens prove not to be enough: DPoP (RFC 9449) or
   certificate-bound tokens (RFC 8705), chosen per trusted issuer.
 - Whether `config-client` is hand-written or generated from the OpenAPI spec.

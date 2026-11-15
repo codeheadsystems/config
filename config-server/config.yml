@@ -1,0 +1,44 @@
+# Example configuration for the config service. Run it with:
+#   ./gradlew :config-server:run --args="server config-server/config.yml"
+# Every setting is described in the *Config classes in com.codeheadsystems.config.server.
+
+server:
+  applicationConnectors:
+    - type: http
+      port: 8080
+  adminConnectors:
+    - type: http
+      port: 8081   # health checks (datastore) and metrics; keep this port private
+
+# The datastore to serve: a backend name and its options (see each backend's provider).
+datastore:
+  name: memory
+  options: {}
+
+# OpenID Connect issuers whose bearer tokens are accepted. A token's iss must equal an issuer
+# exactly and its aud must contain that issuer's audience. Access is granted per application and
+# environment in METADATA: auth.<name>.subjects = <subject> <subject> ...
+auth:
+  issuers:
+    - name: example
+      issuer: https://oidc.example.com   # https; http only on localhost/127.0.0.1/::1
+      audience: config-server
+  clockSkew: 60s             # at most 10m
+  timeout: 5s               # discovery and JWKS fetches; must be positive
+  keyCacheTtl: 5m           # how long an issuer's JWKS is cached
+  keyRefreshInterval: 30s   # two refetches per window for unknown kids; shorter than keyCacheTtl
+  keyOutageTolerance: 1d    # keep using fetched keys this long while an issuer is down; 0s = off
+
+# Server-side caches, and the Cache-Control defaults when METADATA has no cache.max-age or
+# cache.stale-if-error.
+cache:
+  versionTtl: 1s
+  metadataTtl: 10s
+  defaultMaxAge: 30
+  defaultStaleIfError: 86400
+  retryAfter: 30
+
+# Requests per bearer token: a burst, then a steady rate. Over it is 429 with Retry-After.
+rateLimit:
+  burst: 20
+  requestsPerMinute: 60

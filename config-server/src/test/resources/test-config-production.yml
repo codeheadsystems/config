@@ -1,0 +1,33 @@
+# Configuration for ConfigServerProductionSettingsTest: the production cache, key refresh and rate
+# limit behaviour, with values long or small enough to observe in a test. Issuer URLs are set by
+# ConfigOverrides.
+server:
+  applicationConnectors:
+    - type: http
+      port: 0
+  adminConnectors:
+    - type: http
+      port: 0
+logging:
+  level: WARN
+datastore:
+  name: flaky
+auth:
+  issuers:
+    - name: test
+      issuer: http://replaced-by-the-test
+      audience: config-server
+    # Its own issuer, so rotating its keys cannot affect the other tests.
+    - name: rotating
+      issuer: http://replaced-by-the-test
+      audience: config-server
+  timeout: 1s
+  keyRefreshInterval: 1h
+  keyCacheTtl: 2h
+cache:
+  versionTtl: 1h
+  metadataTtl: 1h
+  retryAfter: 17
+rateLimit:
+  requestsPerMinute: 1
+  burst: 3

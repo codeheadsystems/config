@@ -3,6 +3,9 @@
 [versions]
 assertj = "3.27.7"
 awsSdk = "2.57.10"
+caffeine = "3.3.1"
+dagger = "2.60.1"
+dropwizard = "5.0.2"
 flyway = "13.12.1"
 jakartaInject = "2.0.1"
 jackson = "3.2.4"
@@ -10,6 +13,7 @@ jdbi = "3.55.0"
 jetcd = "0.8.8"
 junit = "6.1.3"
 mockito = "5.24.0"
+nimbusJoseJwt = "10.10"
 pgjdbc = "42.7.14"
 slf4j = "2.0.20"
 testcontainers = "2.0.5"
@@ -19,6 +23,12 @@ assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awsSdk" }
 aws-sdk-dynamodb = { module = "software.amazon.awssdk:dynamodb" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+dagger = { module = "com.google.dagger:dagger", version.ref = "dagger" }
+dagger-compiler = { module = "com.google.dagger:dagger-compiler", version.ref = "dagger" }
+dropwizard-bom = { module = "io.dropwizard:dropwizard-bom", version.ref = "dropwizard" }
+dropwizard-core = { module = "io.dropwizard:dropwizard-core" }
+dropwizard-testing = { module = "io.dropwizard:dropwizard-testing" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 jakarta-inject = { module = "jakarta.inject:jakarta.inject-api", version.ref = "jakartaInject" }
@@ -33,6 +43,7 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbusJoseJwt" }
 pgjdbc = { module = "org.postgresql:postgresql", version.ref = "pgjdbc" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }

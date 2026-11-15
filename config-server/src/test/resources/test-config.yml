@@ -1,0 +1,27 @@
+# Configuration for ConfigServerApplicationTest. The test issuer's URL is set by a ConfigOverride.
+server:
+  applicationConnectors:
+    - type: http
+      port: 0
+  adminConnectors:
+    - type: http
+      port: 0
+logging:
+  level: WARN
+datastore:
+  name: memory
+auth:
+  issuers:
+    - name: test
+      issuer: http://replaced-by-the-test
+      audience: config-server
+    # Nothing listens on port 1: tokens from this issuer get 503.
+    - name: down
+      issuer: http://127.0.0.1:1
+      audience: config-server
+  timeout: 1s
+  keyRefreshInterval: 1ms   # effectively no JWKS refresh limit; the caching test covers the real one
+cache:
+  versionTtl: 0s
+  metadataTtl: 0s
+  retryAfter: 17
