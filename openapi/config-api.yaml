@@ -3,122 +3,428 @@ info:
   title: Config Service API
   version: 0.1.0
   description: |
-    Read and manage configuration stored per application and environment. This file is the
+    Read the configuration settings for one application in one environment. This file is the
     contract for every client: the Java `config-client` module and the Rust `config-client` crate
     are both written (or generated) against it.
+
+    Standards: HTTP semantics, conditional requests and status codes from RFC 9110; caching from
+    RFC 9111 and RFC 5861; `429 Too Many Requests` from RFC 6585; JSON bodies per RFC 8259;
+    bearer tokens from RFC 6750, carrying a JWT (RFC 7519) from an OpenID Connect issuer.
+
+    The API is read-only. No client can change configuration; changes are made only in-process,
+    by Java code using the `config-datastore` library.
+
+    A settings set is a flat map of property keys (namespaced with `.`, such as `database.url`) to
+    string values, plus a version. The version is a positive integer that increases on every
+    change, so a client that remembers it can tell when the settings have changed. Clients check
+    the version with `HEAD` (or a conditional `GET`) and fetch the values only when it differs.
+
+    Authentication and access:
+
+    - Every request carries `Authorization: Bearer <JWT>` (see the `bearerAuth` security scheme).
+      The token comes from an OpenID Connect issuer the server is configured to trust; the
+      server only checks tokens, it never issues them.
+    - The token says who the client is (`iss` and `sub`). The server keeps, for each application
+      and environment, the list of subjects allowed to read its settings. Access is granted there,
+      not by claims in the token.
+    - The server checks in this order: the token (`401`), the names in the path (`400`), access
+      to that application and environment (`403`), then whether the settings exist (`404`). A
+      client without access gets `403` whether or not the settings exist, so a token cannot be
+      used to discover which applications and environments exist.
+    - Tokens should be short-lived (minutes to an hour). Clients get a new token before the old
+      one expires; the issuer, not this API, defines how.
+
+    How often to check:
+
+    - Every settings response carries
+      `Cache-Control: private, max-age=<s>, stale-while-revalidate=<s>, stale-if-error=<s>`
+      (RFC 9111 and RFC 5861). The server sets `max-age` per application and environment
+      (30 seconds by default), so it can slow clients down without changing them.
+    - A client uses its values for `max-age` seconds without asking again, then checks the
+      version. A `304 Not Modified` starts a new `max-age` period.
+    - `stale-while-revalidate` (the same as `max-age`): once `max-age` has passed, a client keeps
+      using its values while it checks the version in the background. Lookups never wait on the
+      network.
+    - `stale-if-error` (1 day by default): while the service answers `500`, `502`, `503` or `504`,
+      or cannot be reached, a client keeps using its values for this long without treating it as
+      a problem. Past it, a client still keeps its values (dropping a running service's
+      configuration is worse than old values) but reports them as stale, for example in logs or
+      a health check.
+    - A client adds random jitter (up to 10% of `max-age`) to each wait, so instances started
+      together do not poll together.
+    - After `429 Too Many Requests` or `503 Service Unavailable`, a client waits at least
+      `Retry-After` seconds before its next request, and keeps using the values it has.
+    - `private` means shared caches (proxies, CDNs) must not store responses: settings can hold
+      secrets.
   license:
     name: MIT
     identifier: MIT
 servers:
   - url: http://localhost:8080
+    description: |
+      Local development only. Bearer tokens must only be sent over TLS (RFC 6750), so every
+      other deployment serves this API over HTTPS.
+security:
+  - bearerAuth: []
 paths:
-  /v1/applications:
+  /v1/applications/{application}/environments/{environment}/settings:
+    parameters:
+      - $ref: "#/components/parameters/Application"
+      - $ref: "#/components/parameters/Environment"
     get:
-      operationId: listApplications
-      summary: List applications.
-      responses:
-        "200":
-          description: The applications.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-  /v1/applications/{application}/environments:
-    get:
-      operationId: listEnvironments
-      summary: List an application's environments.
+      operationId: getSettings
+      summary: Get the settings for an application in an environment.
+      description: |
+        Returns every key and value with the set's version. Send the `ETag` from an earlier
+        response in `If-None-Match` to get `304 Not Modified` when nothing has changed.
+
+        Every request carries the client's token (shortened in these examples).
+
+        First request:
+
+        ```http
+        GET /v1/applications/billing/environments/prod/settings
+        Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ...
+
+        HTTP/1.1 200 OK
+        ETag: "42"
+        Config-Version: 42
+        Cache-Control: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+        Content-Type: application/json
+
+        {"application":"billing","environment":"prod","version":42,
+         "values":{"database.url":"jdbc:postgresql://db:5432/billing","database.pool.size":"10"}}
+        ```
+
+        Later, with the version the client has:
+
+        ```http
+        GET /v1/applications/billing/environments/prod/settings
+        Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ...
+        If-None-Match: "42"
+
+        HTTP/1.1 304 Not Modified
+        ETag: "42"
+        Config-Version: 42
+        Cache-Control: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+        ```
+
+        If the settings changed, the same request gets `200 OK` with the new values and
+        `ETag: "43"` instead.
       parameters:
-        - $ref: "#/components/parameters/Application"
+        - $ref: "#/components/parameters/IfNoneMatch"
       responses:
         "200":
-          description: The environments.
+          description: The settings.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Config-Version:
+              $ref: "#/components/headers/ConfigVersion"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControl"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
+                $ref: "#/components/schemas/Settings"
+              example:
+                application: billing
+                environment: prod
+                version: 42
+                values:
+                  database.url: jdbc:postgresql://db:5432/billing
+                  database.pool.size: "10"
+        "304":
+          $ref: "#/components/responses/NotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-  /v1/applications/{application}/environments/{environment}/config:
-    get:
-      operationId: getConfig
-      summary: Get the configuration for an application in an environment.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+    head:
+      operationId: getSettingsVersion
+      summary: Get the version of the settings, without the keys and values.
+      description: |
+        The same response as `GET` without a body: the version is in the `Config-Version` and
+        `ETag` headers. Use it to poll for changes cheaply.
+
+        Without a version, to learn the current one:
+
+        ```http
+        HEAD /v1/applications/billing/environments/prod/settings
+        Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ...
+
+        HTTP/1.1 200 OK
+        ETag: "42"
+        Config-Version: 42
+        Cache-Control: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+        ```
+
+        With the version the client has, when nothing has changed:
+
+        ```http
+        HEAD /v1/applications/billing/environments/prod/settings
+        Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ...
+        If-None-Match: "42"
+
+        HTTP/1.1 304 Not Modified
+        ETag: "42"
+        Config-Version: 42
+        Cache-Control: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+        ```
+
+        With the version the client has, after the settings changed:
+
+        ```http
+        HEAD /v1/applications/billing/environments/prod/settings
+        Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ...
+        If-None-Match: "42"
+
+        HTTP/1.1 200 OK
+        ETag: "43"
+        Config-Version: 43
+        Cache-Control: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+        ```
+
+        The version is now 43, so the client gets the new values with `GET`.
       parameters:
-        - $ref: "#/components/parameters/Application"
-        - $ref: "#/components/parameters/Environment"
+        - $ref: "#/components/parameters/IfNoneMatch"
       responses:
         "200":
-          description: The configuration.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConfigSet"
+          description: The settings exist; the headers carry their version.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Config-Version:
+              $ref: "#/components/headers/ConfigVersion"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControl"
+        "304":
+          $ref: "#/components/responses/NotModified"
+        "400":
+          description: The application or environment name is not valid.
+        "401":
+          description: The token is missing, invalid or expired.
+          headers:
+            WWW-Authenticate:
+              $ref: "#/components/headers/WWWAuthenticate"
+        "403":
+          description: |
+            The token is valid, but its subject may not read this application's settings in this
+            environment.
+          headers:
+            WWW-Authenticate:
+              $ref: "#/components/headers/WWWAuthenticate"
         "404":
-          $ref: "#/components/responses/NotFound"
-  /v1/applications/{application}/environments/{environment}/config/{key}:
+          description: |
+            There are no settings for this application in this environment. Only answered to a
+            client with access.
+        "429":
+          description: Too many requests. Wait for `Retry-After` seconds before trying again.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+        "500":
+          description: The service failed unexpectedly.
+        "503":
+          description: The datastore cannot be reached. Try again after `Retry-After` seconds.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+  /v1/applications/{application}/environments/{environment}/settings/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Application"
+      - $ref: "#/components/parameters/Environment"
+      - $ref: "#/components/parameters/Key"
     get:
-      operationId: getConfigValue
-      summary: Get one configuration value.
-      parameters:
-        - $ref: "#/components/parameters/Application"
-        - $ref: "#/components/parameters/Environment"
-        - $ref: "#/components/parameters/Key"
+      operationId: getSetting
+      summary: Get one setting.
+      description: |
+        Returns one key's value. The `ETag` and `Config-Version` headers carry the version of the
+        whole set the value was read from. Clients that read more than one key should get the
+        whole set instead.
       responses:
         "200":
           description: The value.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            Config-Version:
+              $ref: "#/components/headers/ConfigVersion"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControl"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConfigValue"
+                $ref: "#/components/schemas/Setting"
+              example:
+                key: database.url
+                value: jdbc:postgresql://db:5432/billing
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A JWT access token (RFC 7519) from an OpenID Connect issuer the server trusts, sent as
+        `Authorization: Bearer <token>` (RFC 6750). The server rejects the token with `401` unless:
+
+        - it is a JWS signed with an asymmetric algorithm (such as `RS256` or `ES256`); `none` and
+          HMAC algorithms are refused (RFC 8725);
+        - `iss` is exactly one of the issuers the server is configured with;
+        - the signature verifies with a key from that issuer's JWKS (RFC 7517), found through
+          OpenID Connect Discovery (`<iss>/.well-known/openid-configuration`, then `jwks_uri`)
+          and matched by `kid`;
+        - `aud` contains the audience the server is configured with for that issuer, so a token
+          issued for another service is refused;
+        - `exp` is present and in the future, and `nbf`, if present, is in the past (allowing a
+          small clock skew);
+        - `sub` is present.
+
+        Access tokens in the RFC 9068 format are accepted, but not required, so tokens from
+        workload identity issuers (such as Kubernetes service account tokens) work too.
+
+        The token then gives access only if its `iss` and `sub` are on the list of subjects
+        allowed to read the requested application in the requested environment; otherwise the
+        answer is `403`.
   parameters:
     Application:
       name: application
       in: path
       required: true
+      description: The service's name, such as `billing`.
       schema:
-        type: string
+        $ref: "#/components/schemas/Name"
+      example: billing
     Environment:
       name: environment
       in: path
       required: true
+      description: Where the service runs, such as `prod`.
       schema:
-        type: string
+        $ref: "#/components/schemas/Name"
+      example: prod
     Key:
       name: key
       in: path
       required: true
+      description: A property key, such as `database.url`.
+      schema:
+        $ref: "#/components/schemas/Key"
+      example: database.url
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: The `ETag` of a version the client already has.
       schema:
         type: string
+      example: '"42"'
+  headers:
+    ETag:
+      description: The set's version as an entity tag, such as `"42"`.
+      schema:
+        type: string
+        pattern: '^"[1-9][0-9]*"$'
+      example: '"42"'
+    ConfigVersion:
+      description: The set's version as a plain integer, the same value as in the `ETag`.
+      schema:
+        $ref: "#/components/schemas/Version"
+      example: 42
+    CacheControl:
+      description: |
+        How long the client may use these values, in seconds (RFC 9111, RFC 5861):
+
+        - `max-age`: before checking the version again. Set per application and environment on
+          the server; 30 by default.
+        - `stale-while-revalidate`: after `max-age`, while a version check is in progress. Always
+          the same as `max-age`.
+        - `stale-if-error`: while the service is failing or unreachable. Set per application and
+          environment on the server; 86400 (1 day) by default.
+
+        `private` keeps shared caches (proxies, CDNs) from storing settings, which can hold
+        secrets.
+      schema:
+        type: string
+        pattern: "^private, max-age=[0-9]+, stale-while-revalidate=[0-9]+, stale-if-error=[0-9]+$"
+      example: private, max-age=30, stale-while-revalidate=30, stale-if-error=86400
+    WWWAuthenticate:
+      description: |
+        The bearer challenge (RFC 6750, section 3). Without a token: `Bearer`. With a token that
+        is not valid: `Bearer error="invalid_token"`. With a valid token that lacks access:
+        `Bearer error="insufficient_scope"`.
+      schema:
+        type: string
+      example: Bearer error="invalid_token", error_description="The access token expired"
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema:
+        type: integer
+        minimum: 0
+      example: 30
   schemas:
-    ConfigValue:
+    Name:
+      description: An application or environment name, 1 to 63 characters, like a DNS label.
+      type: string
+      pattern: "^[a-z0-9][a-z0-9_-]{0,62}$"
+    Key:
+      description: A property key; segments separated by `.`.
+      type: string
+      pattern: '^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$'
+    Version:
+      description: A set's version. It only ever increases.
+      type: integer
+      format: int64
+      minimum: 1
+    Settings:
+      type: object
+      required: [application, environment, version, values]
+      properties:
+        application:
+          $ref: "#/components/schemas/Name"
+        environment:
+          $ref: "#/components/schemas/Name"
+        version:
+          $ref: "#/components/schemas/Version"
+        values:
+          type: object
+          propertyNames:
+            $ref: "#/components/schemas/Key"
+          additionalProperties:
+            type: string
+    Setting:
       type: object
       required: [key, value]
       properties:
         key:
-          type: string
+          $ref: "#/components/schemas/Key"
         value:
           type: string
-    ConfigSet:
-      type: object
-      required: [application, environment, values]
-      properties:
-        application:
-          type: string
-        environment:
-          type: string
-        version:
-          type: integer
-          format: int64
-        values:
-          type: object
-          additionalProperties:
-            type: string
     Error:
       type: object
       required: [message]
@@ -126,9 +432,89 @@ components:
         message:
           type: string
   responses:
-    NotFound:
-      description: The application, environment or key does not exist.
+    NotModified:
+      description: |
+        The settings are still at the version in `If-None-Match`. No body. The client keeps its
+        values for another `max-age` seconds.
+      headers:
+        ETag:
+          $ref: "#/components/headers/ETag"
+        Config-Version:
+          $ref: "#/components/headers/ConfigVersion"
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+    BadRequest:
+      description: The application, environment or key is not a valid name.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+          example:
+            message: "Invalid application 'Billing'"
+    Unauthorized:
+      description: |
+        The token is missing, invalid or expired. Get a new token before trying again.
+      headers:
+        WWW-Authenticate:
+          $ref: "#/components/headers/WWWAuthenticate"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "The access token expired"
+    Forbidden:
+      description: |
+        The token is valid, but its subject may not read this application's settings in this
+        environment. Answered whether or not the settings exist.
+      headers:
+        WWW-Authenticate:
+          $ref: "#/components/headers/WWWAuthenticate"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Not allowed to read application billing in environment prod"
+    NotFound:
+      description: |
+        There are no settings for this application in this environment (never created, or
+        deleted), or the key is not set. Only answered to a client with access.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "No settings for application billing in environment prod"
+    TooManyRequests:
+      description: |
+        Too many requests. Wait at least `Retry-After` seconds before the next request, and keep
+        using the values already held.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Too many requests"
+    InternalError:
+      description: The service failed unexpectedly.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Internal error"
+    Unavailable:
+      description: The datastore cannot be reached. Try again after `Retry-After` seconds.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "The datastore cannot be reached"

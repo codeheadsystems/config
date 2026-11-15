@@ -24,6 +24,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-server/` | The config service. | Placeholder |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores. | Not published |
+| `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens for the config service's tests. | Not published |
 | `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
 | `rust/` | Cargo workspace: `config-model` and `config-client`. Rust reads configuration only through the config service. | |
 | `buildSrc/` | Gradle convention plugins. | |

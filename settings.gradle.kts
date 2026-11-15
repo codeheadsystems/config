@@ -42,6 +42,9 @@ include("config-server")
 // End-to-end tests against real datastores (Testcontainers). Not published.
 include("config-integ")
 
+// In-process OpenID Connect issuer that signs test tokens for config-server's tests. Not published.
+include("config-test-oidc")
+
 nmcpSettings {
     centralPortal {
         username = System.getenv("CENTRAL_PORTAL_USERNAME")
