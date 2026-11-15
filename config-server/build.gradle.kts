@@ -24,6 +24,8 @@ dependencies {
     testImplementation(libs.bundles.test)
     testImplementation(libs.dropwizard.testing)
     testImplementation(project(":config-test-oidc"))
+    // The Java client generated from the spec, to check the server against what clients expect.
+    testImplementation(project(":config-client"))
 }
 
 tasks.withType<JavaCompile>().configureEach {

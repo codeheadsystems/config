@@ -239,10 +239,40 @@ Exporting is a capability of `config-datastore` itself, not of any one backend: 
 data can be exported, so any store can produce a snapshot that seeds another. (Not built yet; the
 SPI's listings, `applications()`, `environments()` and `types()`, give it what it needs.)
 
+## Clients
+
+Both clients' HTTP layers are generated from `openapi/config-api.yaml` with
+[OpenAPI Generator](https://openapi-generator.tech) (7.27.0, in the version catalog), so they
+cannot drift from the spec. Generation also validates the spec.
+
+- **Java** (`config-client`): the `java` generator with the `native` library (`java.net.http`, no
+  HTTP library dependency) and Jackson 3 (`useJackson3`), generated into `build/` on every build and compiled in its own
+  source set, so the generator's warnings do not relax `-Xlint:all -Werror` for hand-written code.
+  Packages `com.codeheadsystems.config.client.api` (`SettingsApi`), `.model` and `.invoker`. Any
+  status but 2xx, `304` included, is an `ApiException` carrying the status and headers; the
+  `...WithHttpInfo` methods return headers on success. The bearer token is added with
+  `ApiClient.setRequestInterceptor`.
+- **Rust** (`rust/config-api`): the `rust` generator with `reqwest`. Cargo cannot run the
+  generator, so the crate is committed; `./gradlew :config-client:generateRustClient` regenerates
+  it, and `checkRustClient` (part of `./gradlew build`) fails if the committed crate is not what
+  the spec generates. The generator's Rust templates drop response headers, which carry the
+  version, so the build patches two of them (`patchRustTemplates`) to give every response,
+  success or error, its `status` and `headers`; a generator upgrade that breaks the patch fails
+  the build. Errors deserialize into an untagged enum whose variants all hold the same model, so
+  callers use `status`, not the variant. The token goes in `Configuration.bearer_access_token`.
+- The schema `Error` is generated as `ErrorMessage` in both, so it does not shadow `Error` types.
+
+The generated code is only the HTTP layer. The client behaviour the spec describes (wait
+`max-age` with jitter, check the version, keep values on errors, honor `Retry-After`) belongs in a
+hand-written `ConfigurationFactory` on top of it, still to be written.
+`GeneratedClientContractTest` (in `config-server`) runs the generated Java client against the real
+server; `rust/config-client/tests` run the generated Rust client against spec-shaped responses.
+
 ## config-server
 
 A [Dropwizard](https://www.dropwizard.io) application, wired with [Dagger](https://dagger.dev)
-(no Spring). Dropwizard owns the lifecycle, the HTTP server (Jetty, Jersey), configuration,
+(no Spring). It uses Jackson 2 because Dropwizard 5 does; the rest of the project, the clients
+included, uses Jackson 3, and the server moves to Jackson 3 when Dropwizard does. Dropwizard owns the lifecycle, the HTTP server (Jetty, Jersey), configuration,
 logging, metrics and health checks; Dagger builds the objects it registers, using the same
 JSR-330 annotations as the rest of the project.
 
@@ -349,7 +379,8 @@ artifacts run on Java 21 and later.
 - The export format.
 - Sender-constrained tokens, if bearer tokens prove not to be enough: DPoP (RFC 9449) or
   certificate-bound tokens (RFC 8705), chosen per trusted issuer.
-- Whether `config-client` is hand-written or generated from the OpenAPI spec.
+- The hand-written client layer (`ConfigurationFactory` over the generated HTTP clients), in Java
+  and Rust.
 - Storage layout for the remaining backends (S3 uses one object per set with a deleted-set marker;
   the same approach likely suits DynamoDB and etcd), and how environments inherit or override
   values.

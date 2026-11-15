@@ -91,6 +91,9 @@ servers:
       other deployment serves this API over HTTPS.
 security:
   - bearerAuth: []
+tags:
+  - name: settings
+    description: An application's settings in an environment, and their version.
 paths:
   /v1/applications/{application}/environments/{environment}/settings:
     parameters:
@@ -98,6 +101,7 @@ paths:
       - $ref: "#/components/parameters/Environment"
     get:
       operationId: getSettings
+      tags: [settings]
       summary: Get the settings for an application in an environment.
       description: |
         Returns every key and value with the set's version. Send the `ETag` from an earlier
@@ -179,6 +183,7 @@ paths:
           $ref: "#/components/responses/Unavailable"
     head:
       operationId: getSettingsVersion
+      tags: [settings]
       summary: Get the version of the settings, without the keys and values.
       description: |
         The same status and version headers as `GET`, without a body: the version is in the
@@ -279,6 +284,7 @@ paths:
       - $ref: "#/components/parameters/Key"
     get:
       operationId: getSetting
+      tags: [settings]
       summary: Get one setting.
       description: |
         Returns one key's value. The `ETag` and `Config-Version` headers carry the version of the

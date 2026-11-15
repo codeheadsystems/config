@@ -20,13 +20,13 @@ Licensed under the [MIT License](LICENSE).
 | `config-datastore-dynamodb/` | DynamoDB backend. | Placeholder |
 | `config-datastore-etcd/` | etcd backend. | Placeholder |
 | `config-library/` | In-process Java library that reads a datastore directly. | Published |
-| `config-client/` | Java client for the config service HTTP API. | Placeholder |
+| `config-client/` | Java client for the config service HTTP API: the HTTP layer is generated from the spec at build time. Also generates the Rust `config-api` crate. | Not published |
 | `config-server/` | The config service: a Dropwizard application wired with Dagger. | Not published |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores. | Not published |
 | `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens for the config service's tests. | Not published |
 | `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
-| `rust/` | Cargo workspace: `config-model` and `config-client`. Rust reads configuration only through the config service. | |
+| `rust/` | Cargo workspace: `config-model`, `config-api` (generated from the spec; do not edit) and `config-client`. Rust reads configuration only through the config service. | |
 | `buildSrc/` | Gradle convention plugins. | |
 | `docs/` | Design and usage documentation. | |
 
@@ -44,6 +44,15 @@ Rust:
 
 ```sh
 cd rust && cargo test
+```
+
+The clients' HTTP layers are generated from `openapi/config-api.yaml`. The Java one is generated
+on every build. The Rust crate `rust/config-api` is committed, because Cargo cannot run the
+generator; after changing the spec, regenerate it and commit the result (`./gradlew build` fails
+while it is out of date):
+
+```sh
+./gradlew :config-client:generateRustClient
 ```
 
 Run the config service locally (in-memory datastore; see `config-server/config.yml`):
