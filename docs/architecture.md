@@ -421,9 +421,10 @@ artifacts run on Java 21 and later.
 - The export format.
 - Sender-constrained tokens, if bearer tokens prove not to be enough: DPoP (RFC 9449) or
   certificate-bound tokens (RFC 8705), chosen per trusted issuer.
-- Storage layout for the remaining backends (S3 uses one object per set with a deleted-set marker;
-  the same approach likely suits DynamoDB and etcd), and how environments inherit or override
-  values.
-- Cleaning up deleted-set markers. They are 16 bytes each and keep versions monotonic, so they are
-  kept for now.
+- Storage layout for etcd, the one backend not built yet. S3 stores one object per set and
+  DynamoDB one item per set, and both keep a deleted set's version; the same approach likely suits
+  etcd.
+- How environments inherit or override values.
+- Cleaning up what deleted sets leave behind: S3's 16-byte marker objects and DynamoDB's emptied
+  items. They keep versions monotonic, so they are kept for now.
 - History of configuration sets (each set already has a version that only increases).

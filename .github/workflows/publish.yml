@@ -122,7 +122,8 @@ jobs:
             echo '```kotlin'
             echo 'dependencies {'
             echo "    implementation(platform(\"com.codeheadsystems:config-bom:$VERSION\"))"
-            echo '    implementation("com.codeheadsystems:config-library")'
+            echo '    implementation("com.codeheadsystems:config-library") // reads a datastore in-process'
+            echo '    implementation("com.codeheadsystems:config-client")  // or reads through the config service'
             echo '}'
             echo '```'
             echo

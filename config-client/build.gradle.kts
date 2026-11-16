@@ -15,7 +15,7 @@ val generatedDir = layout.buildDirectory.dir("generated/openapi")
  * The HTTP layer (com.codeheadsystems.config.client.{api,model,invoker}) is generated from the
  * spec on every build: never edited, never committed. Generation also validates the spec.
  */
-val generateJavaClient by tasks.registering(GenerateTask::class) {
+val generateJavaClient = tasks.register<GenerateTask>("generateJavaClient") {
     group = "build"
     description = "Generates the Java HTTP client from openapi/config-api.yaml."
     generatorName = "java"
@@ -47,7 +47,7 @@ val generateJavaClient by tasks.registering(GenerateTask::class) {
 
 // Generated code gets its own source set, so the generator's warnings do not have to be allowed
 // in hand-written code: main keeps -Xlint:all -Werror.
-val generated: SourceSet by sourceSets.creating {
+val generated: SourceSet = sourceSets.create("generated") {
     // From the task's output, so everything reading these sources depends on generateJavaClient.
     java.srcDir(generateJavaClient.flatMap { it.outputDir.dir("src/main/java") })
 }
@@ -91,7 +91,7 @@ val rustCrate = rootProject.layout.projectDirectory.dir("rust/config-api")
  */
 val rustTemplates = layout.buildDirectory.dir("rust-client-templates")
 
-val patchRustTemplates by tasks.registering {
+val patchRustTemplates = tasks.register("patchRustTemplates") {
     description = "Patches the generator's Rust templates so responses carry their headers."
     val generatorVersion = libs.versions.openapiGenerator.get()
     val out = rustTemplates
@@ -144,7 +144,7 @@ fun GenerateTask.rustClient(output: Provider<Directory>) {
     generateModelDocumentation = false
 }
 
-val generateRustClient by tasks.registering(GenerateTask::class) {
+val generateRustClient = tasks.register<GenerateTask>("generateRustClient") {
     group = "build"
     description = "Regenerates rust/config-api from openapi/config-api.yaml."
     rustClient(provider { rustCrate })
@@ -154,7 +154,7 @@ val generateRustClient by tasks.registering(GenerateTask::class) {
 
 val rustCheckDir = layout.buildDirectory.dir("rust-client-check")
 
-val generateRustClientForCheck by tasks.registering(GenerateTask::class) {
+val generateRustClientForCheck = tasks.register<GenerateTask>("generateRustClientForCheck") {
     rustClient(rustCheckDir)
     mustRunAfter(generateRustClient) // both read rust/config-api; check what was just generated
     // Start empty, with the crate's hand-written files: .openapi-generator-ignore, which the
@@ -169,7 +169,7 @@ val generateRustClientForCheck by tasks.registering(GenerateTask::class) {
     }
 }
 
-val checkRustClient by tasks.registering {
+val checkRustClient = tasks.register("checkRustClient") {
     group = "verification"
     description = "Fails if rust/config-api is not what openapi/config-api.yaml generates."
     dependsOn(generateRustClientForCheck)

@@ -2,9 +2,21 @@
 
 Every Java module that applies `buildlogic.publish-conventions` is published to Maven Central
 (Central Portal) under `com.codeheadsystems`, in one deployment, at one shared version. Today that
-is `config-bom`, `config-model`, `config-datastore`, `config-datastore-s3`,
-`config-datastore-testkit` and `config-library`; `./gradlew verifyPublishConfig` lists them. A
-module joins by applying the plugin and adding a constraint to `config-bom`.
+is:
+
+- `config-bom`
+- `config-model`
+- `config-datastore`
+- `config-datastore-sql`
+- `config-datastore-dynamodb`
+- `config-datastore-s3`
+- `config-datastore-testkit`
+- `config-library`
+- `config-client` (its generated HTTP layer is compiled into its jar and sources jar)
+
+`./gradlew verifyPublishConfig` lists them. A module joins by applying the plugin and adding a
+constraint to `config-bom`. `config-server`, `config-integ`, `config-test-oidc` and the
+`config-datastore-etcd` placeholder are never published. The Rust crates are not published either.
 
 Nothing has been released yet. The workflows below only run when a tag is pushed or a release is
 started by hand, so nothing is published until the first version is ready.
@@ -77,7 +89,9 @@ Both paths run `.github/workflows/publish.yml`:
 
 1. Checks the tag format and that the tagged commit is on `main`.
 2. Checks that Gradle's version equals the tag's.
-3. `./gradlew clean build` (all tests, including the RustFS ones in Docker).
+3. `./gradlew clean build`: all tests, including the backend and end-to-end tests in Docker and
+   the Rust client scenarios (cargo comes preinstalled on GitHub's Ubuntu runners). `CI` is set
+   there, so a missing Docker or cargo fails the release instead of skipping tests.
 4. Imports the GPG key and runs `./gradlew publishAggregationToCentralPortal`, which signs and
    uploads every module as one deployment.
 5. Removes the signing material from the runner.
