@@ -1,0 +1,15 @@
+[package]
+name = "config-integ-driver"
+description = "Drives config-client for config-integ's end-to-end tests; never published"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+config-client = { path = "../config-client" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "net", "time"] }

@@ -330,6 +330,25 @@ JSR-330 annotations as the rest of the project.
 
 Run it locally with `./gradlew :config-server:run --args="server config-server/config.yml"`.
 
+## Integration tests
+
+`config-integ` runs the whole path on every implemented backend (PostgreSQL, DynamoDB Local, and
+RustFS for S3, one container each per run): a writer changes settings through the datastore
+library, `config-server` is started from a configuration file naming that backend, and both
+readers, `ClientConfigurationFactory` over HTTP and `LibraryConfigurationFactory` in-process,
+follow the change. `EndToEndContract` holds the scenarios (changes, `304`, revoked access, a
+deleted and recreated set, cache settings from METADATA, the health check); each backend is a
+subclass. Without Docker the tests are skipped locally and fail on CI. Tokens come from
+`config-test-oidc`.
+
+The Rust client runs in the same scenarios (changes and `304`, refusing to start without access,
+revoked access, a refused token and its replacement, a deleted and recreated set). The tests start
+`rust/config-integ-driver`, a small unpublished program that wraps `ConfigClient` and takes
+commands (`refresh`, `state`, `quit`) on standard input, answering each with a JSON line. Its token
+comes from a file it rereads on every request, so a test can swap tokens. Gradle builds the driver
+with cargo before the tests run; without cargo the Rust scenarios are skipped locally and fail on
+CI, like the Docker ones.
+
 ## Layering in config-library
 
 `LibraryConfigurationFactory` reads the application's `SETTINGS` set from a stack of datastores:

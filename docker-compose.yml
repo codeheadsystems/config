@@ -12,8 +12,10 @@ services:
     ports:
       - "5432:5432"
 
+  # Pinned: the DynamoDB backend's tests and config-integ run against the same version
+  # (DYNAMODB_LOCAL_IMAGE in DynamodbLocal.java and Backends.java); change them together.
   dynamodb:
-    image: amazon/dynamodb-local:latest
+    image: amazon/dynamodb-local:3.3.2
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
       - "8000:8000"

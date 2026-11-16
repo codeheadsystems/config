@@ -23,10 +23,10 @@ Licensed under the [MIT License](LICENSE).
 | `config-client/` | Java client for the config service: `ClientConfigurationFactory`, over an HTTP layer generated from the spec at build time. Also generates the Rust `config-api` crate. | Published |
 | `config-server/` | The config service: a Dropwizard application wired with Dagger. | Not published |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
-| `config-integ/` | End-to-end tests against real datastores. | Not published |
+| `config-integ/` | End-to-end tests against real datastores, for the Java and Rust clients (needs Docker and cargo). | Not published |
 | `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens for the config service's tests. | Not published |
 | `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
-| `rust/` | Cargo workspace: `config-model`, `config-api` (generated from the spec; do not edit) and `config-client`. Rust reads configuration only through the config service. | |
+| `rust/` | Cargo workspace: `config-model`, `config-api` (generated from the spec; do not edit), `config-client`, and `config-integ-driver` (runs the Rust client in `config-integ`; not published). Rust reads configuration only through the config service. | |
 | `buildSrc/` | Gradle convention plugins. | |
 | `docs/` | Design and usage documentation. | |
 
@@ -61,7 +61,73 @@ Run the config service locally (in-memory datastore; see `config-server/config.y
 ./gradlew :config-server:run --args="server config-server/config.yml"
 ```
 
-Local datastores for manual testing:
+## Testing
+
+### What you need
+
+| Tool | Used by |
+|------|---------|
+| JDK 25 | Every Java test. |
+| Docker | The backend tests (`config-datastore-sql`, `-dynamodb`, `-s3`) and `config-integ`. |
+| Rust 1.85+ with `rustfmt` and `clippy` (cargo on the `PATH`) | The Rust tests, and `config-integ`'s Rust client scenarios. |
+
+Testcontainers starts and removes the containers itself, using the images pinned in the tests
+(PostgreSQL, DynamoDB Local and RustFS). You don't need `docker compose` for testing.
+
+### Run everything
+
+This is what CI runs:
+
+```sh
+./gradlew build
+cd rust
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all
+```
+
+`./gradlew build` runs:
+
+- every Java module's tests;
+- each backend's datastore contract tests against its container;
+- the `config-server` tests;
+- the `config-integ` end-to-end tests, which cover every backend through the Java client, the Rust
+  client and the library;
+- `checkRustClient`, which fails if `rust/config-api` is out of date with the spec.
+
+To run the Java tests without the rest of the build, use `./gradlew test`.
+
+### Skipped tests
+
+Tests that need Docker or cargo skip on a developer machine when it is missing. They fail instead
+when the `CI` environment variable is set. To make sure nothing was skipped, run:
+
+```sh
+CI=true ./gradlew build
+```
+
+### Run part of the tests
+
+```sh
+./gradlew :config-server:test                                # one module
+./gradlew :config-integ:test --tests '*PostgresEndToEndTest'  # one test class
+./gradlew :config-integ:test --tests '*PostgresEndToEndTest.theRustClient*' # matching methods
+./gradlew :config-integ:test --rerun                         # rerun tests Gradle considers up to date
+cd rust && cargo test -p config-client                       # one Rust crate
+```
+
+The end-to-end scenarios live in `EndToEndContract` but run under each backend's subclass, so a
+`--tests` filter names the subclass (`PostgresEndToEndTest`, `DynamodbEndToEndTest` or
+`S3EndToEndTest`).
+
+### Reports
+
+Each module writes test reports to `build/reports/tests/test/index.html` and coverage reports to
+`build/reports/jacoco/test/html/index.html`.
+
+## Local datastores
+
+For manual testing, start the datastores with:
 
 ```sh
 docker compose up -d

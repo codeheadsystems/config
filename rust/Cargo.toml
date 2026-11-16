@@ -4,6 +4,7 @@ members = [
     "config-model",
     "config-api",
     "config-client",
+    "config-integ-driver",
 ]
 
 [workspace.package]
