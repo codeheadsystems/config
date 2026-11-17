@@ -13,7 +13,8 @@ dependencies {
     testImplementation(project(":config-datastore-etcd"))
     testImplementation(project(":config-datastore-s3"))
     testImplementation(project(":config-datastore-testkit"))
-    testImplementation(project(":config-test-oidc"))
+    // The real mini-idp, in-process: issues ES256 tokens for the config-server audience.
+    testImplementation(libs.mini.idp.testkit)
     testImplementation(platform(libs.dropwizard.bom))
     testImplementation(libs.dropwizard.testing)
     // To create the S3 test bucket; the server itself only reads it.

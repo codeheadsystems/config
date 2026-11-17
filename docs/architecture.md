@@ -146,7 +146,8 @@ token itself.
 
 **Testing.** `config-test-oidc` is an in-process OpenID Connect issuer for tests: it serves the
 discovery document and JWKS and signs tokens with any claims, including invalid ones (expired,
-wrong audience, unknown key). It is not published.
+wrong audience, unknown key). It is not published. `config-server`'s own tests use it, since only
+a forging issuer can make the tokens a verifier must refuse.
 
 ## Datastores
 
@@ -338,8 +339,11 @@ library, `config-server` is started from a configuration file naming that backen
 readers, `ClientConfigurationFactory` over HTTP and `LibraryConfigurationFactory` in-process,
 follow the change. `EndToEndContract` holds the scenarios (changes, `304`, revoked access, a
 deleted and recreated set, cache settings from METADATA, the health check); each backend is a
-subclass. Without Docker the tests are skipped locally and fail on CI. Tokens come from
-`config-test-oidc`.
+subclass. Without Docker the tests are skipped locally and fail on CI. Tokens come from a real
+issuer: mini-auth's mini-idp, embedded through `TestIdp` (`com.codeheadsystems:mini-idp-testkit`).
+It runs on a loopback port, and the tests get ES256 tokens for the `config-server` audience from
+its client-credentials endpoint, as a deployed service would. The token's subject is the service
+account's client id.
 
 The Rust client runs in the same scenarios (changes and `304`, refusing to start without access,
 revoked access, a refused token and its replacement, a deleted and recreated set). The tests start

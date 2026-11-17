@@ -14,7 +14,7 @@ import com.codeheadsystems.config.model.Configuration;
 import com.codeheadsystems.config.model.Environment;
 import com.codeheadsystems.config.model.Key;
 import com.codeheadsystems.config.model.Value;
-import com.codeheadsystems.config.testoidc.TestOidcIssuer;
+import com.codeheadsystems.miniidp.testkit.TestIdp;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -34,16 +34,21 @@ import org.junit.jupiter.api.TestInstance;
  * datastore library (the only way configuration changes); config-server serves them over HTTP;
  * a service reads them through {@link ClientConfigurationFactory} or the Rust client
  * ({@link RustClient}), and an in-process service through {@link LibraryConfigurationFactory}.
- * Each backend runs these as its own subclass.
+ * Tokens come from the real mini-idp ({@link TestIdp}) over its client-credentials endpoint, ES256
+ * for the config-server audience. Each backend runs these as its own subclass.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class EndToEndContract {
 
-  private static final String SUBJECT = "system:serviceaccount:billing:billing";
+  /** The service account: its client id is the token's {@code sub}. */
+  private static final String SUBJECT = "billing";
+  private static final String SECRET = "billing-secret";
+  /** An audience the account may ask for, which config-server must refuse. */
+  private static final String OTHER_AUDIENCE = "another-service";
   private static final Environment ENV = Environment.from("prod");
   private static final HttpClient HTTP = HttpClient.newHttpClient();
 
-  private TestOidcIssuer issuer;
+  private TestIdp issuer;
   private ConfigServer server;
   private ConfigDatastore writer;
   private Application app;
@@ -60,8 +65,14 @@ abstract class EndToEndContract {
     final Map<String, String> options = options();
     // The writer opens first, so it creates the schema, table or bucket layout the server reads.
     writer = ConfigDatastores.open(datastore(), Configuration.builder().with(options).build());
-    issuer = TestOidcIssuer.start();
-    server = new ConfigServer(datastore(), options, issuer.issuer());
+    issuer = TestIdp.builder()
+        .defaultAudience(ConfigServer.AUDIENCE)
+        // config-server accepts RS256 and ES256, not mini-idp's default EdDSA.
+        .audienceAlgorithm(ConfigServer.AUDIENCE, "ES256")
+        .audienceAlgorithm(OTHER_AUDIENCE, "ES256")
+        .start();
+    issuer.addServiceAccount(SUBJECT, SECRET, ConfigServer.AUDIENCE, OTHER_AUDIENCE);
+    server = new ConfigServer(datastore(), options, URI.create(issuer.issuer()));
   }
 
   @AfterAll
@@ -115,7 +126,7 @@ abstract class EndToEndContract {
     write(Map.of("pool", "10"));
 
     try (ClientConfigurationFactory client = client()) {
-      grant("system:serviceaccount:other:other");
+      grant("other");
 
       assertThat(client.refresh()).isFalse();
       assertThat(client.problem())
@@ -180,7 +191,7 @@ abstract class EndToEndContract {
   @Test
   void theRustClientRefusesToStartWithoutAccess() {
     RustClient.requireDriver();
-    grant("system:serviceaccount:other:other");
+    grant("other");
     write(Map.of("pool", "10"));
 
     assertThatThrownBy(this::rustClient)
@@ -194,7 +205,7 @@ abstract class EndToEndContract {
     write(Map.of("pool", "10"));
 
     try (RustClient rust = rustClient()) {
-      grant("system:serviceaccount:other:other");
+      grant("other");
       RustClient.State state = rust.refresh();
       assertThat(state.changed()).isFalse();
       assertThat(state.problem())
@@ -203,7 +214,7 @@ abstract class EndToEndContract {
 
       grant(SUBJECT);
       // A token for another service is refused; the client reads its token file on every request.
-      rust.token(issuer.token(SUBJECT).audience("another-service").sign());
+      rust.token(issuer.token(SUBJECT, SECRET, OTHER_AUDIENCE));
       state = rust.refresh();
       assertThat(state.problem()).hasValueSatisfying(problem -> assertThat(problem).startsWith("401: "));
       assertThat(state.settings()).containsEntry("pool", "10");
@@ -289,7 +300,7 @@ abstract class EndToEndContract {
   }
 
   private String token() {
-    return issuer.token(SUBJECT).audience(ConfigServer.AUDIENCE).sign();
+    return issuer.token(SUBJECT, SECRET, ConfigServer.AUDIENCE);
   }
 
   private URI settingsUri() {

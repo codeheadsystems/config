@@ -24,7 +24,7 @@ Licensed under the [MIT License](LICENSE).
 | `config-server/` | The config service: a Dropwizard application wired with Dagger. | Not published |
 | `config-bom/` | BOM aligning every published `config-*` module. | Published |
 | `config-integ/` | End-to-end tests against real datastores, for the Java and Rust clients (needs Docker and cargo). | Not published |
-| `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens for the config service's tests. | Not published |
+| `config-test-oidc/` | In-process OpenID Connect issuer that signs test tokens, valid and forged, for `config-server`'s tests. (`config-integ` uses mini-auth's mini-idp instead.) | Not published |
 | `openapi/` | The HTTP API contract (`config-api.yaml`), shared by every client. | |
 | `rust/` | Cargo workspace: `config-model`, `config-api` (generated from the spec; do not edit), `config-client`, and `config-integ-driver` (runs the Rust client in `config-integ`; not published). Rust reads configuration only through the config service. | |
 | `buildSrc/` | Gradle convention plugins. | |
