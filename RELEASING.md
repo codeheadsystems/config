@@ -18,8 +18,8 @@ is:
 constraint to `config-bom`. `config-server`, `config-integ`, `config-test-oidc` and the
 `config-datastore-etcd` placeholder are never published. The Rust crates are not published either.
 
-Nothing has been released yet. The workflows below only run when a tag is pushed or a release is
-started by hand, so nothing is published until the first version is ready.
+The workflows below only run when a tag is pushed or a release is started by hand. Each release
+needs an entry in [CHANGELOG.md](CHANGELOG.md); see "Before releasing".
 
 ## How the version is chosen
 
@@ -50,7 +50,11 @@ gpg --keyserver keys.openpgp.org --send-keys ABCD1234EFGH5678
 
 ### 3. GitHub secrets
 
-At https://github.com/codeheadsystems/config/settings/secrets/actions:
+These are **organization** secrets of `codeheadsystems`, shared with its other publishing repos
+and already set (https://github.com/organizations/codeheadsystems/settings/secrets/actions). A
+repository secret of the same name would override one. `gh secret list` shows only repository
+secrets, so it lists none here; `gh api repos/codeheadsystems/config/actions/organization-secrets`
+lists the ones this repo can use.
 
 | Secret | Value |
 |--------|-------|
@@ -61,6 +65,17 @@ At https://github.com/codeheadsystems/config/settings/secrets/actions:
 | `GPG_KEY_ID` | The key ID, such as `EFGH5678` |
 
 Delete `private-key.txt` once it is uploaded.
+
+## Before releasing
+
+1. In [CHANGELOG.md](CHANGELOG.md), rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (the
+   release day), add a new empty `## [Unreleased]` above it, and update the compare links at the
+   bottom. A pre-release such as `X.Y.Z-rc.1` uses the `X.Y.Z` entry unless it has its own.
+2. Check the entry the release notes will use: `.github/scripts/changelog-section.sh X.Y.Z`.
+3. Commit that to `main`.
+
+Both release paths refuse a version without an entry: **manual release** before it tags, and
+`publish.yml` before it builds.
 
 ## Releasing
 
@@ -87,7 +102,8 @@ publishes it.
 
 Both paths run `.github/workflows/publish.yml`:
 
-1. Checks the tag format and that the tagged commit is on `main`.
+1. Checks the tag format, that `CHANGELOG.md` has an entry for the version, and that the tagged
+   commit is on `main`.
 2. Checks that Gradle's version equals the tag's.
 3. `./gradlew clean build`: all tests, including the backend and end-to-end tests in Docker and
    the Rust client scenarios (cargo comes preinstalled on GitHub's Ubuntu runners). `CI` is set
@@ -95,14 +111,16 @@ Both paths run `.github/workflows/publish.yml`:
 4. Imports the GPG key and runs `./gradlew publishAggregationToCentralPortal`, which signs and
    uploads every module as one deployment.
 5. Removes the signing material from the runner.
-6. Creates the GitHub release with the module list and jars. A tag with a suffix is marked as a
-   pre-release.
+6. Creates the GitHub release: the changelog entry, then how to depend on it, the module list
+   and jars, then GitHub's generated list of merged pull requests. A tag with a suffix is marked
+   as a pre-release.
 
 Artifacts reach Maven Central in 15 to 120 minutes. Check
 https://repo1.maven.org/maven2/com/codeheadsystems/config-bom/ and the **Deployments** page at
 https://central.sonatype.com.
 
-After a release, raise `version` in `gradle.properties` to the next SNAPSHOT.
+After a release, raise `version` in `gradle.properties` to the next SNAPSHOT, and record changes
+under `## [Unreleased]` in `CHANGELOG.md` as they land.
 
 ## Checking locally
 
@@ -128,6 +146,10 @@ git tag -d v0.0.0-test
 
 ## Troubleshooting
 
+- **"CHANGELOG.md has no entry for X.Y.Z"**: add the section (see "Before releasing") and commit
+  it. With a pushed tag, delete the tag (`git push --delete origin vX.Y.Z`) and tag the new commit.
+  **Manual release** tags the latest `vX.Y.Z` plus one patch, so its entry must be for that
+  version.
 - **"Gradle version does not match the tag"**: the tag is not on the checked-out commit, or is not
   `vX.Y.Z[-suffix]`. Check `git describe --tags --exact-match HEAD`.
 - **"is not on main"**: the tag points at a commit that has not landed on `main`. Delete the tag

@@ -1,10 +1,10 @@
 # config
 
 A configuration service and client libraries. Configuration is stored per **application** and
-**environment** in a pluggable datastore (PostgreSQL, DynamoDB, etcd, S3, ...) and read either through
-the config service's HTTP API or directly from the datastore with an in-process library.
+**environment** in a pluggable datastore (PostgreSQL, DynamoDB or S3, with etcd planned) and read either
+through the config service's HTTP API or directly from the datastore with an in-process library.
 Configuration is property-based: flat keys (namespaced with dots, such as `database.url`) mapped to
-string values. Any datastore's data can be exported.
+string values. Exporting any datastore's data, to seed another, is planned.
 
 Licensed under the [MIT License](LICENSE).
 
@@ -136,7 +136,8 @@ docker compose up -d
 ## Coordinates
 
 Java artifacts are published to Maven Central under group `com.codeheadsystems` (Java packages are
-`com.codeheadsystems.config.*`). Nothing has been released yet; see [RELEASING.md](RELEASING.md).
+`com.codeheadsystems.config.*`). Versions and their changes are in [CHANGELOG.md](CHANGELOG.md);
+how releases are made is in [RELEASING.md](RELEASING.md).
 
 ```kotlin
 dependencies {

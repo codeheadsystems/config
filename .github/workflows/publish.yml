@@ -37,6 +37,11 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
 
+      # Fails before the build, signing or upload when CHANGELOG.md has no entry for the version.
+      # The entry becomes the top of the GitHub release notes.
+      - name: Read the changelog entry
+        run: .github/scripts/changelog-section.sh "$VERSION" > changelog-section.md
+
       # Publishing signs artifacts and ships them under com.codeheadsystems permanently, so it only
       # ever runs on reviewed code. A tag can point at any commit, and anyone who can push a tag or
       # dispatch a workflow could otherwise ship code that never landed on main.
@@ -118,6 +123,10 @@ jobs:
           mkdir -p dist
           {
             echo "## config $VERSION"
+            echo
+            cat changelog-section.md
+            echo
+            echo "### Using it"
             echo
             echo '```kotlin'
             echo 'dependencies {'
