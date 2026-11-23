@@ -2,11 +2,11 @@
 
 [versions]
 assertj = "3.27.7"
-awsSdk = "2.59.0"
+awsSdk = "2.59.5"
 caffeine = "3.3.1"
 dagger = "2.60.1"
 dropwizard = "5.0.2"
-flyway = "13.12.2"
+flyway = "13.13.0"
 jakartaInject = "2.0.1"
 jackson = "3.3.0"
 jakartaAnnotation = "3.0.0"
